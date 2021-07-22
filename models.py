@@ -5,10 +5,10 @@ import flax.linen as nn
 class MLP(nn.Module):
     layer_sizes: Sequence[int]
     dropout: bool = False
-    
+
     @nn.compact
     def __call__(self, x):
-        
+
         for layer_ix, layer_size in enumerate(self.layer_sizes):
             x = nn.Dense(layer_size)(x)
             if layer_ix != len(self.layer_sizes) - 1:
@@ -24,7 +24,7 @@ class MLP(nn.Module):
 class Resnet(nn.Module):
     layer_sizes: Sequence[int]
     dropout: bool = False
-    
+
     @nn.compact
     def __call__(self, x, train=True):
         n_layers = len(self.layer_sizes)
