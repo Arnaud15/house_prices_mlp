@@ -37,5 +37,7 @@ class Resnet(nn.Module):
                 x += residual
                 x = nn.relu(x)
                 dropout_rate = 0.5
-            x = nn.Dropout(dropout_rate, deterministic=not train)(x)
+            x = nn.Dropout(
+                dropout_rate, deterministic=not train or not self.dropout
+            )(x)
         return x
