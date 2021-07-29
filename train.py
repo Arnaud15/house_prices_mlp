@@ -1,4 +1,5 @@
 from typing import Optional, Tuple
+import os
 
 from flax.core.frozen_dict import FrozenDict, unfreeze
 import flax.linen as nn
@@ -8,7 +9,8 @@ import jax.numpy as jnp
 import jax.random as random
 import optax
 
-# from utils import weight_decay
+from board import SummaryWriter
+from utils import *
 
 
 def train_step(
@@ -71,7 +73,23 @@ def train(
     inputs_shape,
     layer_name,
     bias,
+    output_dir=None,
+    hist_every=None,
+    print_every=None,
 ):
+    if output_dir is not None:
+        assert isinstance(output_dir, str)
+        if not os.path.isdir(output_dir):
+            os.makedirs(output_dir)
+            print(f"Directory '{output_dir}' did not exist and was created.")
+        writer = SummaryWriter(output_dir)
+    if hist_every is not None:
+        assert output_dir is not None
+        assert isinstance(hist_every, int)
+    if print_every is not None:
+        assert output_dir is not None
+        assert isinstance(print_every, int)
+
     rng, init_params_rng = random.split(rng, num=2)
     params = init_params(
         rng=init_params_rng,
@@ -83,8 +101,9 @@ def train(
 
     opt_state = optimizer.init(params)
 
+    step = 0
     for _ in range(num_epochs):
-        step = 0
+        epoch_running_loss = None
         for (x_train, y_train) in dataset:
             rng, rng_step = random.split(rng, num=2)
             params, opt_state, loss_step, metric_step = train_step(
@@ -98,9 +117,14 @@ def train(
                 loss_fn,
                 metric_fn,
             )
+            epoch_running_loss = update_running(
+                obs=loss_step, loss=epoch_running_loss, decay=0.9
+            )
             step += 1
-            if step % 1 == 0:
+            if (print_every is not None) and (step % print_every == 0):
                 print(
                     f"Step {step}, Metric: {metric_step:.3f}, Loss: {loss_step:.3f}"
                 )
+            if (hist_every is not None) and (step % print_every == 0):
+                writer.scalar("running_loss", epoch_running_loss, step=step)
     return params
