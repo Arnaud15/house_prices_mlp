@@ -27,6 +27,7 @@ class Resnet(nn.Module):
 
     @nn.compact
     def __call__(self, x, train=True):
+        x_last_shape = x.shape[-1]
         n_layers = len(self.layer_sizes)
         for (layer_ix, layer_size) in enumerate(self.layer_sizes):
             residual = x
@@ -34,6 +35,9 @@ class Resnet(nn.Module):
             if layer_ix == n_layers - 1:
                 dropout_rate = 0.2
             else:
+                assert (
+                    layer_size == x_last_shape
+                ), f"incompatible residual shapes x:{x.shape}, layer:{layer_size}"
                 x += residual
                 x = nn.relu(x)
                 dropout_rate = 0.5
