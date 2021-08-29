@@ -70,6 +70,7 @@ def train(
     output_dir=None,
     hist_every=None,
     print_every=None,
+    single_batch=False,
 ):
     if output_dir is not None:
         assert isinstance(output_dir, str)
@@ -94,6 +95,9 @@ def train(
     )
 
     opt_state = optimizer.init(params)
+
+    if single_batch:
+        train_dataset = train_dataset.take(1)
 
     step = 0
     for _ in range(num_epochs):

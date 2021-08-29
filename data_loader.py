@@ -7,17 +7,10 @@ import tensorflow_datasets as tfds
 
 
 def get_dataset(
-    x_data,
-    y_data,
-    batch_size: int,
-    buffer_size: int,
-    single_batch=False,
-    numpy=False,
+    x_data, y_data, batch_size: int, buffer_size: int, numpy=False,
 ):
     data = tf.data.Dataset.from_tensor_slices((x_data, y_data))
     data = data.batch(batch_size)
-    if single_batch:
-        data = data.take(1)
     data = data.shuffle(buffer_size=buffer_size)
     if numpy:
         return tfds.as_numpy(data)
