@@ -8,7 +8,7 @@ TODO: switch to ml collections for config parameters
 import os
 
 
-from flax import checkpoints
+from flax.training import checkpoints
 import jax
 import jax.numpy as jnp
 import jax.random as random
@@ -38,7 +38,7 @@ def train_step(rng, x, y, state: TrainStateWithLoss):
     (loss_step, predicted_step), grad_step = jax.value_and_grad(
         pure_loss, has_aux=True
     )(state.params)
-    state.apply_gradients(grads=grad_step)
+    state = state.apply_gradients(grads=grad_step)
     residuals_step = y - predicted_step
     return state, loss_step, residuals_step
 
@@ -128,7 +128,7 @@ def train(
             tf.data.Dataset.zip((train_dataset, eval_dataset))
         ):
             rng, rng_train, rng_eval = random.split(rng, num=3)
-            params, loss_step, res_step = train_step(
+            train_state, loss_step, res_step = train_step(
                 rng=rng_train, x=x_train, y=y_train, state=train_state,
             )
             loss_eval_step, _ = eval_step(

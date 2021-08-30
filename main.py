@@ -3,7 +3,7 @@ if __name__ == "__main__":
     import jax.random as random
 
     from data_loader import get_dataset, linear_data, train_test_split
-    from models import MLP, Resnet
+    import models
     from train import train
     from utils import mse_loss
 
@@ -18,6 +18,7 @@ if __name__ == "__main__":
     data_seed = 123415
     train_seed = 123414651
     test_share = 0.3
+    model_selected = "Resnet"
 
     X, Y = linear_data(
         seed=data_seed, n=n_datapoints, p=n_features, bias=bias,
@@ -30,8 +31,10 @@ if __name__ == "__main__":
     )
     train(
         rng=random.PRNGKey(train_seed),
-        model=Resnet(
-            [n_features for _ in range(n_layers)] + [1], dropout=False
+        model=getattr(models, model_selected)(
+            [n_features for _ in range(n_layers)] + [1],
+            dropout=False,
+            dropout_rate=0.1,
         ),
         optimizer=optax.adam(lr),
         train_dataset=train_data,

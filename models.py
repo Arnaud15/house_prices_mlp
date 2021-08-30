@@ -4,8 +4,8 @@ import flax.linen as nn
 
 class MLP(nn.Module):
     layer_sizes: Sequence[int]
+    dropout_rate: float = 0.0
     dropout: bool = False
-    dropout_rate: float
 
     @nn.compact
     def __call__(self, x, train=True):
@@ -16,15 +16,15 @@ class MLP(nn.Module):
                 x = nn.relu(x)
             if self.dropout:
                 x = nn.Dropout(
-                    deterministic=not train, rate=self.dropout_rate
+                    rate=self.dropout_rate, deterministic=not train
                 )(x)
         return x
 
 
 class Resnet(nn.Module):
     layer_sizes: Sequence[int]
+    dropout_rate: float = 0.0
     dropout: bool = False
-    dropout_rate: float
 
     @nn.compact
     def __call__(self, x, train=True):
