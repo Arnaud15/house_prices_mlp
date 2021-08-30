@@ -15,6 +15,7 @@ import jax.random as random
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
+
 from board import SummaryWriter
 from train_state import TrainStateWithLoss
 from utils import init_params, update_running
@@ -76,6 +77,8 @@ def train(
     output_dir=None,
     hist_every=None,
     print_every=None,
+    save_every=None,
+    load_checkpoint=False,
     single_batch=False,
 ):
     if output_dir is not None:
@@ -108,6 +111,11 @@ def train(
         tx=optimizer,
         opt_state=optimizer.init(params),
     )
+
+    if load_checkpoint:
+        train_state = checkpoints.restore_checkpoint(
+            "checkpoints", train_state
+        )
 
     if single_batch:
         train_dataset = train_dataset.take(1)
