@@ -1,3 +1,4 @@
+"""Preprocessing utilities for the house prices dataset."""
 from typing import Any, Dict, List, Optional, Tuple
 
 

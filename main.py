@@ -1,3 +1,28 @@
+# TODO imports on top
+
+
+def house_prices_train():
+    # TODO load the train file
+    # TODO load the embedding files
+    # TODO call preprocessing utils on train
+    # TODO call preprocessing utils on test using info
+    # TODO save info from params
+    # TODO dataloader this
+    # TODO model + optimizer init
+    # TODO training loop with logging and checkpoints
+    # TODO print top K validation accs
+    pass
+
+def house_prices_test():
+    # TODO load test file
+    # TODO load embedding files and info
+    # TODO preprocess data
+    # TODO init model
+    # TODO load desired checkpoint into model
+    # TODO make predictions and save
+    pass
+
+
 if __name__ == "__main__":
     import optax
     import jax.random as random
