@@ -1,5 +1,10 @@
 """Preprocessing utilities for the house prices dataset."""
 # TODO: should we standardize the log normalized columns? I would think so.
+# add the is0 and isNa transforms
+# if the column is to embed, convert to string
+# tuples issue?
+# NA sanity checks
+# embeddings should be separated
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -108,7 +113,7 @@ def preprocess_train(
     """
     # Extract the response vector
     assert "SalePrice" in data.columns, "incomplete frame"
-    y_vec = data.loc[:, "SalePrice"].values
+    y_vec = np.log(data.loc[:, "SalePrice"].values)  # see eda notebook - should be log normalized
 
     # Transform other columns according to retained transforms
     transformed = []
@@ -149,7 +154,7 @@ def preprocess_train(
 def preprocess_eval(
     data: pd.DataFrame,
     preprocess_info: List[TransformInfo],
-) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """Transform evaluation data using preprocessing information from training data.
     Args:
         - data: the evaluation data to transform
@@ -183,7 +188,7 @@ def preprocess_eval(
     assert len(design_matrix.shape) == 2
     assert design_matrix.shape == (len(data), len(transformed))
     assert "SalePrice" in data.columns, "incomplete frame"
-    y_vec = data.loc[:, "SalePrice"].values
+    y_vec = np.log(data.loc[:, "SalePrice"].values)
     assert y_vec.shape[0] == design_matrix.shape[0]
     return design_matrix, y_vec
 

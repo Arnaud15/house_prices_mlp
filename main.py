@@ -1,19 +1,91 @@
-# TODO imports on top
+import json
+import os
+
+import numpy as np
+import pandas as pd
+
+from data_loader import get_dataset
+from models import MLP
+from preprocess_data import preprocess_eval, preprocess_train
+
+EVAL_SHARE = 0.3
+
+# TODO
+# double check on transforms
+# embeddings 
+# training params
+# logging and observability
 
 
-def house_prices_train():
-    # TODO load the train file
-    # TODO load the embedding files
-    # TODO call preprocessing utils on train
-    # TODO call preprocessing utils on test using info
-    # TODO save info from params
-    # TODO dataloader this
-    # TODO model + optimizer init
+def house_prices_train(training_params):
+    train_data_full = pd.read_csv(os.path.join("data", "train.csv")).iloc[:, 1:]  # remove first id column
+
+    np.random.seed(151515)
+    train_indices = np.random.rand(len(train_data_full)) >= EVAL_SHARE
+    train_data, eval_data = (
+        train_data_full[train_indices],
+        train_data_full[~train_indices],
+    )
+    assert len(train_data) + len(eval_data) == len(train_data_full)
+
+    transforms_info = None
+    with open(os.path.join("data", "transforms"), "r") as f:
+        transforms_info = json.loads(f)
+
+    X_train, y_train, preproc_info = preprocess_train(
+        train_data, transforms_info
+    )
+    with open(
+        os.path.join("data", f"preprocess_info_{training_params.uid}"), "w"
+    ) as f:
+        json.dumps(f, preproc_info)
+    X_eval, y_eval = preprocess_eval(eval_data, preproc_info)
+
+    dataset_train = get_dataset(
+        X_train,
+        y_train,
+        training_params.batch_size,
+        len(train_data),
+        numpy=False,
+    )
+    dataset_eval = get_dataset(
+        X_eval, y_eval, training_params.batch_size, len(eval_data), numpy=False
+    )
+    model = (
+        MLP(
+            [
+                training_params.layer_size
+                for _ in range(training_params.n_layers)
+            ]
+            + [1],
+            dropout=training_params.dropout,
+            dropout_rate=training_params.dropout_rate,
+            batch_norm=training_params.batch_norm,
+        ),
+    )
+    train(
+        rng=random.PRNGKey(train_seed),
+        model=model,
+        optimizer=optax.adam(training_params.lr),
+        train_dataset=dataset_train,
+        eval_dataset=dataset_eval,
+        loss_fn=mse_loss,
+        num_epochs=training_params.num_epochs,
+        inputs_shape=(X_train.shape[1],),
+        bias=y_train.mean(),
+        layer_name=str(training_params.n_layers),
+        print_every=1,
+        output_dir="logs",
+        hist_every=1,
+        single_batch=single_batch,
+    )
+
     # TODO training loop with logging and checkpoints
     # TODO print top K validation accs
     pass
 
-def house_prices_test():
+
+def house_prices_test(training_params):
     # TODO load test file
     # TODO load embedding files and info
     # TODO preprocess data
