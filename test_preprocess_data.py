@@ -25,9 +25,6 @@ def test_embed_column():
     encoded, mapping = embed_column(already_encoded + offset,)
     assert np.all(already_encoded == encoded)
     assert len(mapping) == n_unique + 1
-    assert all(
-        key == value for (key, value) in mapping.items() if key != "UNK_TOKEN"
-    )
     assert mapping["UNK_TOKEN"] == n_unique
 
     np.random.seed(15)
