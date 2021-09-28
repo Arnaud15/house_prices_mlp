@@ -111,4 +111,3 @@ def init_params(
         for key, value in dico.items()
     }
     return FrozenDict(unflatten_dict(new_dico))
-

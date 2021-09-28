@@ -370,4 +370,3 @@ def markdownify_operative_config_str(string):
             output_lines.append(procd_line)
 
     return "\n".join(output_lines)
-

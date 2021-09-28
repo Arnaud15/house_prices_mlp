@@ -1,10 +1,9 @@
 """Preprocessing utilities for the house prices dataset."""
 # TODO: should we standardize the log normalized columns? I would think so.
 # add the is0 and isNa transforms
-# if the column is to embed, convert to string
 # tuples issue?
-# NA sanity checks
-# embeddings should be separated
+# N/A sanity checks
+# embeddings should be separated before called by MLP
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -16,7 +15,8 @@ FLOAT_TOL = 1e-12
 
 EmbedMapping = Dict[float, int]
 
-def embed_column(col: np.ndarray) -> Tuple[np.ndarray, EmbedMapping]:
+
+def encode_column(col: np.ndarray) -> Tuple[np.ndarray, EmbedMapping]:
     """Turns a numpy array into an integer array corresponding to its unique
     values.
     Args:
@@ -41,20 +41,20 @@ def embed_column(col: np.ndarray) -> Tuple[np.ndarray, EmbedMapping]:
     )
 
 
-def embed_from_mapping(col: np.ndarray, mapping: EmbedMapping) -> np.ndarray:
+def encode_from_mapping(col: np.ndarray, mapping: EmbedMapping) -> np.ndarray:
     """Embeds a columns from an existing mapping from floats to codes."""
     assert "UNK_TOKEN" in mapping
-    embedded = np.empty_like(col)
+    encoded = np.empty_like(col)
     for (ix, val) in enumerate(col):
         try:
-            embedded[ix] = mapping[val]
+            encoded[ix] = mapping[val]
         except KeyError:
-            embedded[ix] = mapping["UNK_TOKEN"]
-    return embedded
+            encoded[ix] = mapping["UNK_TOKEN"]
+    return encoded
 
 
 def scale_column(
-    col: np.ndarray, 
+    col: np.ndarray,
 ) -> Tuple[np.ndarray, Optional[Tuple[float, float]]]:
     """Scale entries in the input to the range [-1, 1].
     Args:
@@ -72,7 +72,9 @@ def scale_column(
         return 2 * (col - min_) / (max_ - min_) - 1, (min_, max_)
 
 
-def scale_from_minmax(col: np.ndarray, minmax: Optional[Tuple[float, float]]) -> np.ndarray:
+def scale_from_minmax(
+    col: np.ndarray, minmax: Optional[Tuple[float, float]]
+) -> np.ndarray:
     """Scale entries in the input using existing min max values"""
     if minmax is None:
         return np.zeros_like(col)
@@ -82,17 +84,29 @@ def scale_from_minmax(col: np.ndarray, minmax: Optional[Tuple[float, float]]) ->
         return 2 * (col - min_) / (max_ - min_) - 1
 
 
-def log_normalize(col: np.ndarray) -> np.ndarray:
-    """Normalize inputs using a log."""
+def log_std(col: np.ndarray) -> Tuple[np.ndarray, Tuple[float, float]]:
+    """Normalize inputs using a log, then standardize them"""
     assert col.min() > 0.0
-    return np.log(col)
+    log_transformed = np.log(col)
+    mean_, std_ = log_transformed.mean(), log_transformed.std()
+    return (log_transformed - mean_) / (std_ + FLOAT_TOL), (mean_, std_)
 
 
-TransformInfo = Tuple[str, str, Any] # column, transform name and optional data
+def log_std_from_stats(
+    col: np.ndarray, mean_std: Tuple[float, float]
+) -> np.ndarray:
+    """Normalize inputs using a log, a mean offset and a std scale."""
+    mean_, std_ = mean_std
+    assert std_ >= 0.0
+    assert col.min() > 0.0
+    return (np.log(col) - mean_) / (std_ + FLOAT_TOL)
+
+
+TransformInfo = Tuple[str, str, Any]  # column, transform name, optional data
+
 
 def preprocess_train(
-    data: pd.DataFrame,
-    transforms: List[Tuple[str, str]],
+    data: pd.DataFrame, transforms: List[Tuple[str, str]],
 ) -> Tuple[np.ndarray, np.ndarray, List[TransformInfo]]:
     """Transform training data and return preprocessed data (X, y) and
     preprocessing parameters.
@@ -101,10 +115,12 @@ def preprocess_train(
         - transforms: list of (col_name, transform_name) specifying which
           transforms to apply to selected columns.
         Possible transforms are
-        - embed: columns that are embedded.
+        - embed: columns that are encoded.
         - scale: columns that are scaled in [-1, 1]
-        - lognorm: columns that are log normalized.
+        - logstd: columns that are log normalized.
         - identity: columns that are used as-is.
+        - isnan: transformed into the binary indicator x is nan.
+        - is0: transformed into the binary indicator x == 0.
     Returns:
         (X, y, info)
         - X of shape (n_rows, n_columns) the transformed training data.
@@ -113,31 +129,44 @@ def preprocess_train(
     """
     # Extract the response vector
     assert "SalePrice" in data.columns, "incomplete frame"
-    y_vec = np.log(data.loc[:, "SalePrice"].values)  # see eda notebook - should be log normalized
+    y_vec = np.log(
+        data.loc[:, "SalePrice"].values
+    )  # see eda notebook - should be log normalized
 
     # Transform other columns according to retained transforms
     transformed = []
     preprocess_info = []
     for (col, transform) in transforms:
-        assert col != "SalePrice", "forbidden to use the response vector as a feature!"
+        assert (
+            col != "SalePrice"
+        ), "forbidden to use the response vector as a feature!"
         if transform == "embed":
-            embedded, mapping = embed_column(
-                data.loc[:, col].values,
+            encoded, mapping = encode_column(
+                data.loc[:, col].astype(str).values,
             )
-            transformed.append(embedded)
+            transformed.append(encoded)
             preprocess_info.append((col, transform, mapping))
         elif transform == "scale":
             scaled, min_max = scale_column(data.loc[:, col].values)
             transformed.append(scaled)
             preprocess_info.append((col, transform, min_max))
-        elif transform == "lognorm":
-            transformed.append(log_normalize(data.loc[:, col].values))
-            preprocess_info.append((col, transform, None))
+        elif transform == "logstd":
+            scaled, mean_std = log_std(data.loc[:, col].values)
+            transformed.append(scaled)
+            preprocess_info.append((col, transform, mean_std))
         elif transform == "identity":
             transformed.append(data.loc[:, col].values)
             preprocess_info.append((col, transform, None))
+        elif transform == "isnan":
+            transformed.append(np.isnan(data.loc[:, col].values))
+            preprocess_info.append((col, transform, None))
+        elif transform == "is0":
+            transformed.append(data.loc[:, col].values == 0)
+            preprocess_info.append((col, transform, None))
         else:
-            raise NotImplementedError(f"tranform {transform} is not implemented.")
+            raise NotImplementedError(
+                f"tranform {transform} is not implemented."
+            )
     assert len(transformed) == len(preprocess_info)
     assert len(transformed) == len(transforms)
 
@@ -152,9 +181,8 @@ def preprocess_train(
 
 
 def preprocess_eval(
-    data: pd.DataFrame,
-    preprocess_info: List[TransformInfo],
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    data: pd.DataFrame, preprocess_info: List[TransformInfo],
+) -> Tuple[np.ndarray, np.ndarray]:
     """Transform evaluation data using preprocessing information from training data.
     Args:
         - data: the evaluation data to transform
@@ -165,22 +193,31 @@ def preprocess_eval(
         (X, y) evaluation data transformed and ready to be processed."""
     transformed = []
     for (col, transform, info) in preprocess_info:
-        assert col != "SalePrice", "forbidden to use the response vector as a feature!"
+        assert (
+            col != "SalePrice"
+        ), "forbidden to use the response vector as a feature!"
         if transform == "embed":
-            embedded = embed_from_mapping(
-                data.loc[:, col].values,
-                info
+            encoded = encode_from_mapping(
+                data.loc[:, col].astype(str).values, info
             )
-            transformed.append(embedded)
+            transformed.append(encoded)
         elif transform == "scale":
-            scaled= scale_from_minmax(data.loc[:, col].values, info)
+            scaled = scale_from_minmax(data.loc[:, col].values, info)
             transformed.append(scaled)
-        elif transform == "lognorm":
-            transformed.append(log_normalize(data.loc[:, col].values))
+        elif transform == "logstd":
+            transformed.append(
+                log_std_from_stats(data.loc[:, col].values, info)
+            )
         elif transform == "identity":
             transformed.append(data.loc[:, col].values)
+        elif transform == "isnan":
+            transformed.append(np.isnan(data.loc[:, col].values))
+        elif transform == "is0":
+            transformed.append(data.loc[:, col].values == 0)
         else:
-            raise NotImplementedError(f"tranform {transform} is not implemented.")
+            raise NotImplementedError(
+                f"tranform {transform} is not implemented."
+            )
     assert len(transformed) == len(preprocess_info)
     design_matrix = np.concatenate(
         [arr.reshape(-1, 1) for arr in transformed], axis=1
@@ -191,4 +228,3 @@ def preprocess_eval(
     y_vec = np.log(data.loc[:, "SalePrice"].values)
     assert y_vec.shape[0] == design_matrix.shape[0]
     return design_matrix, y_vec
-

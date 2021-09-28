@@ -4,6 +4,22 @@ import pandas as pd
 from preprocess_data import *
 
 
+def with_nan(npoints: int) -> np.ndarray:
+    arr = np.random.randn(npoints)
+    nan_indexes = np.random.rand(npoints) >= 0.6
+    arr[nan_indexes] = np.nan
+    assert np.isnan(arr).sum() > 0
+    return arr
+
+
+def with_zeroes(npoints: int) -> np.ndarray:
+    arr = np.random.randn(npoints)
+    nan_indexes = np.random.rand(npoints) >= 0.6
+    arr[nan_indexes] = 0.0
+    assert (arr == 0).sum() > 0
+    return arr
+
+
 def test_preprocess_e2e():
     n_unique = 3
     n_repeats = 7
@@ -11,21 +27,27 @@ def test_preprocess_e2e():
     codes = np.arange(n_unique)
     repeated_codes = np.repeat(codes, n_repeats) + offset
     npoints = len(repeated_codes)
-    y = np.random.randn(npoints)
-    data = pd.DataFrame({
-        "ones": np.ones_like(repeated_codes),
-        "zeros": np.zeros_like(repeated_codes),
-        "unique": np.random.rand(npoints),
-        "repeated": repeated_codes,
-        "SalePrice": y,
-    })
-    possible_transforms = ["embed", "identity", "lognorm", "scale"]
+    y = np.random.rand(npoints)
+    data = pd.DataFrame(
+        {
+            "ones": np.ones_like(repeated_codes),
+            "zeros": np.zeros_like(repeated_codes),
+            "unique": np.random.rand(npoints),
+            "repeated": repeated_codes,
+            "nan_values": with_nan(npoints),
+            "zero_values": with_zeroes(npoints),
+            "SalePrice": y,
+        }
+    )
+    possible_transforms = ["embed", "identity", "logstd", "scale", "isnan", "is0"]
     transforms = []
     for col in data.columns:
         if col == "SalePrice":
             continue
         for transform in possible_transforms:
-            if col == "zeros" and transform == "lognorm":
+            if col in ["zeros", "nan_values", "zero_values"] and transform == "logstd":
+                continue
+            if col in ["nan_values"] and transform == "scale":
                 continue
             transforms.append((col, transform))
     X_train, y_train, info = preprocess_train(data, transforms)
@@ -84,26 +106,26 @@ def test_scale():
     assert np.allclose(zeros, np.zeros_like(zeros))
 
 
-def test_embed_from_info():
+def test_encode_from_info():
     np.random.seed(1515)
     n_unique = 100
     rd_vals = np.random.randn(n_unique)
-    embedded, mapping = embed_column(rd_vals)
-    embedded_again = embed_from_mapping(rd_vals, mapping)
+    embedded, mapping = encode_column(rd_vals)
+    embedded_again = encode_from_mapping(rd_vals, mapping)
     assert np.all(embedded == embedded_again)
 
     rd_vals_2 = np.random.randn(n_unique)
-    embedded_unk = embed_from_mapping(rd_vals_2, mapping)
+    embedded_unk = encode_from_mapping(rd_vals_2, mapping)
     assert np.all(embedded_unk == n_unique)
 
 
-def test_embed_column():
+def test_encode_column():
     n_unique = 7
     n_repeats = 3
     offset = 5
     repeated_codes = np.arange(n_unique)
     already_encoded = np.repeat(repeated_codes, n_repeats)
-    encoded, mapping = embed_column(already_encoded + offset,)
+    encoded, mapping = encode_column(already_encoded + offset,)
     assert np.all(already_encoded == encoded)
     assert len(mapping) == n_unique + 1
     assert mapping["UNK_TOKEN"] == n_unique
@@ -111,7 +133,7 @@ def test_embed_column():
     np.random.seed(15)
     n_unique = 100
     all_unique = np.random.randn(n_unique)
-    encoded, mapping = embed_column(all_unique,)
+    encoded, mapping = encode_column(all_unique,)
     to_sorted = np.argsort(encoded)
     assert np.all(encoded[to_sorted] == np.arange(all_unique.shape[0]))
     assert np.allclose(
@@ -122,4 +144,3 @@ def test_embed_column():
         all_unique[to_sorted],
     )
     assert mapping["UNK_TOKEN"] == n_unique
-

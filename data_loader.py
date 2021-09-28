@@ -44,4 +44,3 @@ def train_test_split(
     test = dataset.take(n_eval_batches)
     train = dataset.skip(n_eval_batches)
     return train, test
-

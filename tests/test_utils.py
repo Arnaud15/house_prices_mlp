@@ -39,4 +39,3 @@ def test_init_params(model_init):
 
     dev = (out.mean(0) - large_bias) / large_bias
     assert jnp.abs(dev) < tol, dev
-
