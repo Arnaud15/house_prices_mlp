@@ -39,22 +39,28 @@ def test_preprocess_e2e():
             "SalePrice": y,
         }
     )
-    possible_transforms = ["embed", "identity", "logstd", "scale", "isnan", "is0"]
-    transforms = []
+    encoded_transforms = ["embed", "isnan", "is0"]
+    numeric_transforms = ["logstd", "identity", "scale"]
+    to_encode = []
+    to_numeric = []
     for col in data.columns:
         if col == "SalePrice":
             continue
-        for transform in possible_transforms:
-            if col in ["zeros", "nan_values", "zero_values"] and transform == "logstd":
+        for transform in encoded_transforms:
+            to_encode.append((col, transform))
+        if col == "nan_values":
+            continue
+        for transform in numeric_transforms:
+            if (col == "zeros" or col == "zero_values") and transform == "logstd":
                 continue
-            if col in ["nan_values"] and transform == "scale":
-                continue
-            transforms.append((col, transform))
-    X_train, y_train, info = preprocess_train(data, transforms)
-    X_eval, y_eval = preprocess_eval(data, info)
-    assert np.allclose(X_train, X_eval)
+            to_numeric.append((col, transform))
+    X_train_numeric, y_train, numeric_info = preprocess_train(data, to_numeric)
+    X_train_encoding, _, encoding_info = preprocess_train(data, to_encode)
+    X_eval_numeric, y_eval = preprocess_eval(data, numeric_info)
+    X_eval_encoding, _ = preprocess_eval(data, encoding_info)
+    assert np.allclose(X_train_numeric, X_eval_numeric)
     assert np.allclose(y_train, y_eval)
-    assert np.allclose(y_train, y)
+    assert np.all(X_train_encoding == X_eval_encoding)
 
 
 def test_scale():
