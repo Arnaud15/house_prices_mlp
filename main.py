@@ -11,9 +11,17 @@ from preprocess_data import preprocess_eval, preprocess_train
 EVAL_SHARE = 0.3
 
 # TODOs
-# embeddings
-# training params
-# logging and observability
+# separate design matrices for embeddings in the pipeline
+# clean up the pipeline and make training params a namedtuple
+# allow the model to embed stuff
+# clean up logging with clu
+# debug single training
+# re-org files
+# submission script
+# multiple model checkpoints and logging handling
+# debug a couple of regularization ideas
+# ray notebook or script
+# submissions with better and better models
 
 
 def house_prices_train(training_params):
