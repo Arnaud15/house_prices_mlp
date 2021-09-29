@@ -1,108 +1,56 @@
-"""Preprocessing utilities for the house prices dataset."""
-# TODO: should we standardize the log normalized columns? I would think so.
-# add the is0 and isNa transforms
-# tuples issue?
-# N/A sanity checks
-# embeddings should be separated before called by MLP
-from typing import Any, Dict, List, Optional, Tuple
-
-
+from typing import List, Any, Tuple
+from preprocess_utils import *
 import numpy as np
 import pandas as pd
 
-
-FLOAT_TOL = 1e-12
-
-EmbedMapping = Dict[float, int]
-
-
-def encode_column(col: np.ndarray) -> Tuple[np.ndarray, EmbedMapping]:
-    """Turns a numpy array into an integer array corresponding to its unique
-    values.
-    Args:
-        col: the numpy array to encode
-    Returns:
-        (encoded_col, mapping)
-        - encoded_col has shape col.shape. It contains the integer codes
-          corresponding to each value in the input array
-        - mapping is a dictionary with n_uniques keys. keys are observed values
-          in the column, their corresponding value is their embedding indice.
-    """
-    assert len(col.shape) == 1, "only embedding 1D arrays"
-    _, indices, encoded_col = np.unique(
-        col, return_index=True, return_inverse=True, return_counts=False
-    )
-    n_uniques = indices.shape[0]
-    mapping = {col[indice]: idx for (idx, indice) in enumerate(indices)}
-    mapping["UNK_TOKEN"] = n_uniques  # add unknown token
-    return (
-        encoded_col,
-        mapping,
-    )
-
-
-def encode_from_mapping(col: np.ndarray, mapping: EmbedMapping) -> np.ndarray:
-    """Embeds a columns from an existing mapping from floats to codes."""
-    assert "UNK_TOKEN" in mapping
-    encoded = np.empty_like(col)
-    for (ix, val) in enumerate(col):
-        try:
-            encoded[ix] = mapping[val]
-        except KeyError:
-            encoded[ix] = mapping["UNK_TOKEN"]
-    return encoded
-
-
-def scale_column(
-    col: np.ndarray,
-) -> Tuple[np.ndarray, Optional[Tuple[float, float]]]:
-    """Scale entries in the input to the range [-1, 1].
-    Args:
-        col: the ndarray to scale
-    Returns:
-        scaled: the scaled output
-        min_max: the min and the max values observed and used for scaling
-    """
-    assert len(col.shape) == 1
-    assert not np.any(np.isnan(col)), "NaN values in array to rescale"
-    min_, max_ = col.min(), col.max()
-    if (max_ - min_) < FLOAT_TOL:
-        return np.zeros_like(col), None
-    else:
-        return 2 * (col - min_) / (max_ - min_) - 1, (min_, max_)
-
-
-def scale_from_minmax(
-    col: np.ndarray, minmax: Optional[Tuple[float, float]]
-) -> np.ndarray:
-    """Scale entries in the input using existing min max values"""
-    if minmax is None:
-        return np.zeros_like(col)
-    else:
-        min_, max_ = minmax
-        assert max_ - min_ >= FLOAT_TOL
-        return 2 * (col - min_) / (max_ - min_) - 1
-
-
-def log_std(col: np.ndarray) -> Tuple[np.ndarray, Tuple[float, float]]:
-    """Normalize inputs using a log, then standardize them"""
-    assert col.min() > 0.0
-    log_transformed = np.log(col)
-    mean_, std_ = log_transformed.mean(), log_transformed.std()
-    return (log_transformed - mean_) / (std_ + FLOAT_TOL), (mean_, std_)
-
-
-def log_std_from_stats(
-    col: np.ndarray, mean_std: Tuple[float, float]
-) -> np.ndarray:
-    """Normalize inputs using a log, a mean offset and a std scale."""
-    mean_, std_ = mean_std
-    assert std_ >= 0.0
-    assert col.min() > 0.0
-    return (np.log(col) - mean_) / (std_ + FLOAT_TOL)
-
+from collections import namedtuple
 
 TransformInfo = Tuple[str, str, Any]  # column, transform name, optional data
+
+Datapoints = namedtuple("Datapoints", ["y", "X_num", "X_cat"])
+
+NUMERIC_TRANSFORMS = {"scale", "lognorm", "identity"}
+CATEGORICAL_TRANSFORMS = {"isnan", "is0", "embed"}
+MIN_CARDINALITY = 50
+
+
+def get_transformed_data(
+    train_data: pd.DataFrame,
+    eval_data: pd.DataFrame,
+    transforms: List[Tuple[str, str]],
+) -> Tuple[Datapoints, Datapoints, int]:
+    numeric_t = [
+        (col, transfo)
+        for (col, transfo) in transforms
+        if transfo in NUMERIC_TRANSFORMS
+    ]
+    X_num, y, numeric_info = preprocess_train(train_data, numeric_t)
+    cat_t = [
+        (col, transfo)
+        for (col, transfo) in transforms
+        if transfo in CATEGORICAL_TRANSFORMS
+    ]
+    X_cat, _, cat_info = preprocess_train(train_data, cat_t)
+
+    retained_cat_indices = [
+        ix
+        for ix in range(X_cat.shape[1])
+        if np.unique(X_cat[:, ix], return_counts=True)[1].min()
+        >= MIN_CARDINALITY
+    ]
+    X_cat = X_cat[:, retained_cat_indices]
+    cardinalities = [
+        len(np.unique(X_cat[:, ix])) for ix in range(X_cat.shape[1])
+    ]
+
+    train_data = Datapoints(y=y, X_num=X_num, X_cat=X_cat)
+
+    X_num_eval, y_eval = preprocess_eval(eval_data, numeric_info)
+    X_cat_eval, _ = preprocess_eval(eval_data, cat_info)
+    X_cat_eval = X_cat_eval[:, retained_cat_indices]
+
+    eval_data = Datapoints(y=y_eval, X_num=X_num_eval, X_cat=X_cat_eval)
+    return train_data, eval_data, cardinalities
 
 
 def preprocess_train(
@@ -117,7 +65,7 @@ def preprocess_train(
         Possible transforms are
         - embed: columns that are encoded.
         - scale: columns that are scaled in [-1, 1]
-        - logstd: columns that are log normalized.
+        - lognorm: columns that are log normalized.
         - identity: columns that are used as-is.
         - isnan: transformed into the binary indicator x is nan.
         - is0: transformed into the binary indicator x == 0.
@@ -150,7 +98,7 @@ def preprocess_train(
             scaled, min_max = scale_column(data.loc[:, col].values)
             transformed.append(scaled)
             preprocess_info.append((col, transform, min_max))
-        elif transform == "logstd":
+        elif transform == "lognorm":
             scaled, mean_std = log_std(data.loc[:, col].values)
             transformed.append(scaled)
             preprocess_info.append((col, transform, mean_std))
@@ -204,7 +152,7 @@ def preprocess_eval(
         elif transform == "scale":
             scaled = scale_from_minmax(data.loc[:, col].values, info)
             transformed.append(scaled)
-        elif transform == "logstd":
+        elif transform == "lognorm":
             transformed.append(
                 log_std_from_stats(data.loc[:, col].values, info)
             )

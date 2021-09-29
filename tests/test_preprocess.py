@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from preprocess_data import *
+from preprocess import *
+from preprocess_utils import *
 
 
 def with_nan(npoints: int) -> np.ndarray:
@@ -40,7 +41,7 @@ def test_preprocess_e2e():
         }
     )
     encoded_transforms = ["embed", "isnan", "is0"]
-    numeric_transforms = ["logstd", "identity", "scale"]
+    numeric_transforms = ["lognorm", "identity", "scale"]
     to_encode = []
     to_numeric = []
     for col in data.columns:
@@ -51,7 +52,9 @@ def test_preprocess_e2e():
         if col == "nan_values":
             continue
         for transform in numeric_transforms:
-            if (col == "zeros" or col == "zero_values") and transform == "logstd":
+            if (
+                col == "zeros" or col == "zero_values"
+            ) and transform == "lognorm":
                 continue
             to_numeric.append((col, transform))
     X_train_numeric, y_train, numeric_info = preprocess_train(data, to_numeric)

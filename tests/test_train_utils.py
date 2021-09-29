@@ -1,7 +1,7 @@
 import pytest
 
 from models import MLP, Resnet
-from utils import init_params
+from train_utils import init_params
 
 import jax.random as random
 import jax.numpy as jnp

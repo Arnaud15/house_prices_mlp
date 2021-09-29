@@ -1,12 +1,16 @@
+from collections import namedtuple
 import json
 import os
 
 import numpy as np
 import pandas as pd
 
-from data_loader import get_dataset
-from models import MLP
-from preprocess_data import preprocess_eval, preprocess_train
+from preprocess import get_transformed_data
+from data_loader import get_dataset, train_test_split_pandas
+from models import get_embedders
+from training_loop import train
+from train_utils import mse_loss
+
 
 EVAL_SHARE = 0.3
 
@@ -24,88 +28,82 @@ EVAL_SHARE = 0.3
 # submissions with better and better models
 
 
-def house_prices_train(training_params):
+def house_prices_train(args):
     train_data_full = pd.read_csv(os.path.join("data", "train.csv")).iloc[
         :, 1:
     ]  # remove first id column
 
     np.random.seed(151515)
-    train_indices = np.random.rand(len(train_data_full)) >= EVAL_SHARE
-    train_data, eval_data = (
-        train_data_full[train_indices],
-        train_data_full[~train_indices],
-    )
-    assert len(train_data) + len(eval_data) == len(train_data_full)
 
-    transforms_info = None
+    transforms = None
     with open(os.path.join("data", "transforms"), "r") as f:
-        transforms_info = json.loads(f)
+        transforms = json.load(f)
+        transforms = [tuple(list_) for list_ in transforms]
 
-    X_train, y_train, preproc_info = preprocess_train(
-        train_data, transforms_info
-    )
-    with open(
-        os.path.join("data", f"preprocess_info_{training_params.uid}"), "w"
-    ) as f:
-        json.dumps(f, preproc_info)
-    X_eval, y_eval = preprocess_eval(eval_data, preproc_info)
+    train_data, eval_data = train_test_split_pandas(train_data_full)
 
-    dataset_train = get_dataset(
-        X_train,
-        y_train,
-        training_params.batch_size,
-        len(train_data),
-        numpy=False,
+    train_transformed, eval_transformed, cardinalities = get_transformed_data(
+        train_data=train_data, eval_data=eval_data, transforms=transforms
     )
-    dataset_eval = get_dataset(
-        X_eval, y_eval, training_params.batch_size, len(eval_data), numpy=False
+
+    train_dataset = get_dataset(
+        x_num=train_transformed.X_num,
+        x_cat=train_transformed.X_cat,
+        y_data=train_transformed.y,
+        batch_size=args.batch_size,
+        buffer_size=len(train_data),
+        numpy=True,
     )
-    model = (
-        MLP(
-            [
-                training_params.layer_size
-                for _ in range(training_params.n_layers)
-            ]
-            + [1],
-            dropout=training_params.dropout,
-            dropout_rate=training_params.dropout_rate,
-            batch_norm=training_params.batch_norm,
-        ),
+
+    eval_dataset = get_dataset(
+        x_num=eval_transformed.X_num,
+        x_cat=eval_transformed.X_cat,
+        y_data=eval_transformed.y,
+        batch_size=args.batch_size,
+        buffer_size=len(eval_data),
+        numpy=True,
     )
-    train(
+
+    embedders = get_embedders(cardinalities, args.embed_size)
+
+    mlp = MLP(
+        layer_sizes=[args.hidden_size for _ in range(args.n_hidden_layers)],
+        dropout_rate=args.dropout_rate,
+        dropout=args.dropout_enabled,
+    )
+
+    return train(
         rng=random.PRNGKey(train_seed),
-        model=model,
-        optimizer=optax.adam(training_params.lr),
-        train_dataset=dataset_train,
-        eval_dataset=dataset_eval,
+        optimizer=optax.adam(args.lr),
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         loss_fn=mse_loss,
-        num_epochs=training_params.num_epochs,
-        inputs_shape=(X_train.shape[1],),
-        bias=y_train.mean(),
-        layer_name=str(training_params.n_layers),
+        num_epochs=args.num_epochs,
+        inputs_shape=(
+            train_transformed.X_num.shape[1]
+            + train_transformed.X_cat.shape[1] * args.embed_size,
+        ),
         print_every=1,
         output_dir="logs",
         hist_every=1,
-        single_batch=single_batch,
+        single_batch=args.single_batch,
     )
-
-    # TODO training loop with logging and checkpoints
-    # TODO print top K validation accs
-    pass
-
-
-def house_prices_test(training_params):
-    # TODO load test file
-    # TODO load embedding files and info
-    # TODO preprocess data
-    # TODO init model
-    # TODO load desired checkpoint into model
-    # TODO make predictions and save
-    pass
 
 
 if __name__ == "__main__":
     print("coming soon")
+    Args = namedtuple(
+        "Args",
+        [
+            "embed_size",
+            "batch_size",
+            "lr",
+            "n_layers",
+            "hidden_size",
+            "dropout_enabled",
+            "dropout_rate",
+        ],
+    )
     # n_features = 10
     # n_layers = 3
     # lr = 5 * 1e-3

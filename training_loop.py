@@ -18,7 +18,7 @@ import tensorflow_datasets as tfds
 
 from board import SummaryWriter
 from train_state import TrainStateWithLoss
-from utils import init_params, update_running
+from train_utils import init_params, update_running
 
 
 @jax.jit
