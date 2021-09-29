@@ -112,7 +112,7 @@ def train(
             )
             if (print_every is not None) and (step % print_every == 0):
                 writer.scalar("train_loss", running_train_loss, step=step)
-                print(f"Step {step} | Training Loss: {loss_step:.3f}")
+                print(f"Step {step} | Training Loss: {loss_step:.4f}")
             if (hist_every is not None) and (step % hist_every == 0):
                 writer.histogram("train_hist", res_step, bins=5, step=step)
 
@@ -128,5 +128,5 @@ def train(
             eval_batches += 1
         eval_loss /= eval_batches
         writer.scalar("validation_loss", eval_loss, step=epoch_ix)
-        print(f"Epoch {epoch_ix + 1} | Validation Loss: {eval_loss:.3f}")
+        print(f"Epoch {epoch_ix + 1} | Validation Loss: {eval_loss:.4f}")
     return params

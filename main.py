@@ -14,12 +14,12 @@ from train_utils import mse_loss
 from training_loop import train
 
 # TODOs
-# clean up logging with clu
-# re-org files
+# script for rd hp search
 # submission script
 # debug a couple of regularization ideas
 # ray notebook or script
 # submissions with better and better models
+# re-org files
 
 
 def house_prices_train(args):
@@ -54,7 +54,7 @@ def house_prices_train(args):
         x_num=eval_transformed.X_num,
         x_cat=eval_transformed.X_cat.astype(int),
         y_data=eval_transformed.y,
-        batch_size=args.batch_size,
+        batch_size=len(eval_data),
         buffer_size=len(eval_data),
         single_batch=False,
     )
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         embed_size=3,
         batch_size=32,
         lr=1e-4,
-        n_epochs=2500,
+        n_epochs=1000,
         n_layers=2,
         hidden_size=16,
         dropout_enabled=False,
