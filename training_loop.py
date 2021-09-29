@@ -1,23 +1,18 @@
 """
 Simple training module in Flax.
-
-TODO: switch to clu for logging
-TODO: switch to ml collections for config parameters
 """
 
 import os
 
-
-from flax.training import checkpoints
 import jax
 import jax.numpy as jnp
 import jax.random as random
 import tensorflow as tf
 import tensorflow_datasets as tfds
-
+from flax.training import checkpoints
 
 from board import SummaryWriter
-from models import CustomMLP, init_params
+from models import init_params
 from train_state import TrainStateWithLoss
 from train_utils import update_running
 
@@ -53,7 +48,7 @@ def eval_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
 
     def pure_loss(params):
         predicted = state.apply_fn(
-            params, x_num, x_cat, rngs={"dropout": rng}
+            params, x_num, x_cat, rngs={"dropout": rng}, train=False
         )  # TODO generalize this rngs arg
         loss_items = state.loss_fn(y, predicted)
         return jnp.mean(loss_items), predicted
@@ -76,7 +71,6 @@ def train(
     smoothing_alpha: float = 0.9,
     hist_every=None,
     print_every=None,
-    single_batch=False,
 ):
     if not os.path.isdir("logs"):
         os.makedirs("logs")
@@ -90,9 +84,10 @@ def train(
     rng, init_params_rng = random.split(rng, num=2)
     params = init_params(
         init_params_rng,
+        model,
         num_input_shape,
         cat_input_shape,
-        dropout=model.dropout
+        dropout=model.dropout,
     )
 
     train_state = TrainStateWithLoss(
@@ -104,40 +99,34 @@ def train(
         opt_state=optimizer.init(params),
     )
 
-    if single_batch:
-        train_dataset = train_dataset.take(1)
-
     step = 0
-    for _ in range(num_epochs):
-        running_train_loss = None
-        running_eval_loss = None
-        for ((x_train, y_train), (x_eval, y_eval)) in tfds.as_numpy(
-            tf.data.Dataset.zip((train_dataset, eval_dataset))
-        ):
-            rng, rng_train, rng_eval = random.split(rng, num=3)
+    running_train_loss = None
+    for epoch_ix in range(num_epochs):
+        for (x_num, x_cat, y) in train_dataset:
+            rng, rng_step = random.split(rng, num=2)
             train_state, loss_step, res_step = train_step(
-                rng=rng_train, x=x_train, y=y_train, state=train_state,
-            )
-            loss_eval_step, _ = eval_step(
-                rng_eval, x=x_eval, y=y_eval, state=train_state,
+                rng=rng_step, x_num=x_num, x_cat=x_cat, y=y, state=train_state,
             )
             running_train_loss = update_running(
                 obs=loss_step, loss=running_train_loss, decay=smoothing_alpha,
             )
-            running_eval_loss = update_running(
-                obs=loss_eval_step,
-                loss=running_eval_loss,
-                decay=smoothing_alpha,
-            )
-            step += 1
             if (print_every is not None) and (step % print_every == 0):
                 writer.scalar("train_loss", running_train_loss, step=step)
-                writer.scalar("validation_loss", running_eval_loss, step=step)
-                print(f"Step {step} | Loss: {loss_step:.3f}")
+                print(f"Step {step} | Training Loss: {loss_step:.3f}")
             if (hist_every is not None) and (step % hist_every == 0):
                 writer.histogram("train_hist", res_step, bins=5, step=step)
-            if (save_every is not None) and (step % save_every == 0):
-                checkpoints.save_checkpoint(
-                    "checkpoints", train_state, train_state.step, keep=5
-                )  # TODO - proper checkpoints directory
+
+            step += 1
+        eval_loss = 0.0
+        eval_batches = 0
+        for (x_num, x_cat, y) in eval_dataset:
+            rng, rng_step = random.split(rng, num=2)
+            loss_eval_step, _ = eval_step(
+                rng_step, x_num=x_num, x_cat=x_cat, y=y, state=train_state,
+            )
+            eval_loss += loss_eval_step
+            eval_batches += 1
+        eval_loss /= eval_batches
+        writer.scalar("validation_loss", eval_loss, step=epoch_ix)
+        print(f"Epoch {epoch_ix + 1} | Validation Loss: {eval_loss:.3f}")
     return params

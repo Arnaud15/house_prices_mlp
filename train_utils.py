@@ -3,6 +3,7 @@ from typing import Optional
 import jax
 import jax.numpy as jnp
 
+
 def poisson_loss(y, predicted):
     """
     Poisson NLL, parameterized so that `predicted` can take any scalar value (can be negative).

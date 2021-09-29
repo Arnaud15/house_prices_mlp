@@ -1,37 +1,29 @@
-from collections import namedtuple
 import json
 import os
-
-import numpy as np
-import pandas as pd
-
-from preprocess import get_transformed_data
-from data_loader import get_dataset, train_test_split_pandas
-from models import CustomMLP
-from training_loop import train
-from train_utils import mse_loss
+from collections import namedtuple
 
 import jax.random as random
+import numpy as np
 import optax
+import pandas as pd
 
-
-EVAL_SHARE = 0.3
+from data_loader import get_dataset, train_test_split_pandas
+from models import CustomMLP
+from preprocess import get_transformed_data
+from train_utils import mse_loss
+from training_loop import train
 
 # TODOs
-# clean up the pipeline
-# allow the model to embed stuff
 # clean up logging with clu
-# debug single training
 # re-org files
 # submission script
-# multiple model checkpoints and logging handling
 # debug a couple of regularization ideas
 # ray notebook or script
 # submissions with better and better models
 
 
 def house_prices_train(args):
-    seed = 1515151555151551551
+    seed = 1515151555
     train_data_full = pd.read_csv(os.path.join("data", "train.csv")).iloc[
         :, 1:
     ]  # remove first id column
@@ -51,47 +43,49 @@ def house_prices_train(args):
 
     train_dataset = get_dataset(
         x_num=train_transformed.X_num,
-        x_cat=train_transformed.X_cat,
+        x_cat=train_transformed.X_cat.astype(int),
         y_data=train_transformed.y,
         batch_size=args.batch_size,
         buffer_size=len(train_data),
-        numpy=True,
+        single_batch=args.single_batch,
     )
 
     eval_dataset = get_dataset(
         x_num=eval_transformed.X_num,
-        x_cat=eval_transformed.X_cat,
+        x_cat=eval_transformed.X_cat.astype(int),
         y_data=eval_transformed.y,
         batch_size=args.batch_size,
         buffer_size=len(eval_data),
-        numpy=True,
+        single_batch=False,
     )
-    return train(
+
+    model = CustomMLP(
+        layer_sizes=[args.hidden_size for _ in range(args.n_layers)] + [1],
+        vocab_sizes=[card + 1 for card in cardinalities],
+        embed_size=args.embed_size,
+        dropout_rate=args.dropout_rate,
+        dropout=args.dropout_enabled,
+        bias=train_transformed.y.mean(),
+    )
+
+    trained_params = train(
         rng=random.PRNGKey(seed),
+        model=model,
         optimizer=optax.adam(args.lr),
-        model=CustomMLP(
-            layer_sizes=[args.hidden_size for _ in range(args.n_hidden_layers)],
-            embedding_sizes=[(card + 1, args.embed_size) for card in cardinalities],
-            dropout_rate=args.dropout_rate,
-            dropout=args.dropout_enabled,
-            bias=train_transformed.y.mean(),
-        ),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         loss_fn=mse_loss,
-        num_epochs=args.num_epochs,
-        inputs_shape=(
-            train_transformed.X_num.shape[1]
-            + train_transformed.X_cat.shape[1] * args.embed_size,
-        ),
-        print_every=1,
+        num_epochs=args.n_epochs,
+        cat_input_shape=(args.batch_size, train_transformed.X_cat.shape[1],),
+        num_input_shape=(args.batch_size, train_transformed.X_num.shape[1],),
         hist_every=1,
-        single_batch=args.single_batch,
+        print_every=1,
     )
+
+    return model, trained_params
 
 
 if __name__ == "__main__":
-    print("coming soon")
     Args = namedtuple(
         "Args",
         [
@@ -99,54 +93,25 @@ if __name__ == "__main__":
             "batch_size",
             "lr",
             "n_layers",
+            "n_epochs",
             "hidden_size",
             "dropout_enabled",
             "dropout_rate",
             "single_batch",
         ],
     )
-    # n_features = 10
-    # n_layers = 3
-    # lr = 5 * 1e-3
-    # num_epochs = 500
-    # batch_size = 32
-    # single_batch = True
-    # n_datapoints = 200
-    # bias = 15.15
-    # data_seed = 123415
-    # train_seed = 123414651
-    # test_share = 0.3
-    # model_selected = "Resnet"
-
-    # X, Y = linear_data(
-    #     seed=data_seed, n=n_datapoints, p=n_features, bias=bias,
-    # )
-    # full_dataset = get_dataset(
-    #     X, Y, batch_size=batch_size, buffer_size=n_datapoints, numpy=False,
-    # )
-    # train_data, test_data = train_test_split(
-    #     full_dataset, test_share=test_share
-    # )
-    # train(
-    #     rng=random.PRNGKey(train_seed),
-    #     model=getattr(models, model_selected)(
-    #         [n_features for _ in range(n_layers)] + [1],
-    #         dropout=False,
-    #         dropout_rate=0.1,
-    #     ),
-    #     optimizer=optax.adam(lr),
-    #     train_dataset=train_data,
-    #     eval_dataset=test_data,
-    #     loss_fn=mse_loss,
-    #     num_epochs=num_epochs,
-    #     inputs_shape=(n_features,),
-    #     bias=bias,
-    #     layer_name=str(n_layers),
-    #     print_every=1,
-    #     output_dir="logs",
-    #     hist_every=1,
-    #     single_batch=single_batch,
-    # )
+    args = Args(
+        embed_size=3,
+        batch_size=32,
+        lr=1e-4,
+        n_epochs=2500,
+        n_layers=2,
+        hidden_size=16,
+        dropout_enabled=False,
+        dropout_rate=0.1,
+        single_batch=True,
+    )
+    params = house_prices_train(args)
 else:
     import sys
 

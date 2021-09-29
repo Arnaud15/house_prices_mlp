@@ -6,10 +6,8 @@
 # embeddings should be separated before called by MLP
 from typing import Dict, Optional, Tuple
 
-
 import numpy as np
 import pandas as pd
-
 
 FLOAT_TOL = 1e-12
 

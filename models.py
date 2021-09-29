@@ -1,4 +1,5 @@
 from typing import Any, List, Tuple
+
 import flax.linen as nn
 import jax.numpy as jnp
 import jax.random as random
@@ -6,46 +7,55 @@ import jax.random as random
 PRNG = jnp.ndarray
 Pytree = Any
 
+
 def init_params(
     rng: PRNG,
+    custom_mlp: nn.Module,
     num_input_shape: Tuple[int, ...],
     cat_input_shape: Tuple[int, ...],
-    dropout: bool=False,
+    dropout: bool = False,
 ) -> Pytree:
     """ Initializes pytree parameters for our CustomMLP."""
     if dropout:
-        num_input_key, cat_input_key, params_key, dropout_key = random.split(rng, num=4)
+        num_input_key, cat_input_key, params_key, dropout_key = random.split(
+            rng, num=4
+        )
     else:
         num_input_key, cat_input_key, params_key = random.split(rng, num=3)
 
     num_input = random.normal(num_input_key, shape=num_input_shape)
-    cat_input = random.bernoulli(cat_input_key, shape=cat_input_shape)
+    cat_input = random.bernoulli(cat_input_key, shape=cat_input_shape).astype(
+        int
+    )
     base_keys = {"params": params_key}
     if dropout:
-        base_keys.update(
-            {"dropout": dropout_key}
-        )
-    return CustomMLP.init(base_keys, num_input, cat_input)
+        base_keys.update({"dropout": dropout_key})
+    return custom_mlp.init(base_keys, num_input, cat_input)
 
 
 class CustomMLP(nn.Module):
     layer_sizes: List[int]
-    embedding_sizes: List[Tuple[int, int]]
+    vocab_sizes: List[int]
+    embed_size: int
     dropout_rate: float = 0.0
     dropout: bool = False
     bias: float = 0.0
 
     @nn.compact
     def __call__(self, x_numeric, x_categorical, train=True):
-        assert len(self.embedding_sizes) == x_categorical.shape[1]
+        assert len(self.vocab_sizes) == x_categorical.shape[-1]
         dense = [x_numeric]
-        for (embed_ix, (vocab_size, embed_size)) in enumerate(
-            self.embedding_sizes
-        ):
+        for (embed_ix, vocab_size) in enumerate(self.vocab_sizes):
             dense.append(
-                nn.Embed(vocab_size, embed_size)(x_categorical[:, embed_ix])
+                nn.Embed(vocab_size, self.embed_size)(
+                    x_categorical[:, embed_ix]
+                )
             )
-        x = jnp.concatenate(dense)
+        x = jnp.concatenate(dense, axis=1)
+        assert (
+            x.shape[-1]
+            == x_numeric.shape[-1] + x_categorical.shape[-1] * self.embed_size
+        )
 
         for layer_ix, layer_size in enumerate(self.layer_sizes):
             x = nn.Dense(layer_size)(x)

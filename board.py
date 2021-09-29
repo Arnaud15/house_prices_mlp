@@ -21,6 +21,7 @@ import struct
 import time
 import warnings
 import wave
+
 import matplotlib as mpl
 
 # Necessary to prevent attempted Tk import:
@@ -31,7 +32,6 @@ with warnings.catch_warnings():
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-
 # pylint: disable=g-direct-tensorflow-import
 from tensorflow.core.util import event_pb2
 from tensorflow.python.summary.writer.event_file_writer import EventFileWriter

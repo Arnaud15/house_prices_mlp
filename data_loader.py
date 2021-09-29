@@ -9,15 +9,19 @@ import tensorflow_datasets as tfds
 
 
 def get_dataset(
-    x_num, x_cat, y_data, batch_size: int, buffer_size: int, numpy=False,
+    x_num,
+    x_cat,
+    y_data,
+    batch_size: int,
+    buffer_size: int,
+    single_batch: bool = False,
 ):
     data = tf.data.Dataset.from_tensor_slices((x_num, x_cat, y_data))
     data = data.batch(batch_size)
     data = data.shuffle(buffer_size=buffer_size)
-    if numpy:
-        return tfds.as_numpy(data)
-    else:
-        return data
+    if single_batch:
+        data = data.take(1)
+    return tfds.as_numpy(data)
 
 
 def train_test_split_pandas(
