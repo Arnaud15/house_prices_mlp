@@ -17,20 +17,21 @@ import tensorflow_datasets as tfds
 
 
 from board import SummaryWriter
+from models import CustomMLP, init_params
 from train_state import TrainStateWithLoss
-from train_utils import init_params, update_running
+from train_utils import update_running
 
 
 @jax.jit
-def train_step(rng, x, y, state: TrainStateWithLoss):
-    """Updates the training state on a batch (x, y) of data.
+def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
+    """Updates the training state on a batch (x_num, x_cat, y) of data.
 
     We can jit this function because our state subclasses a jax PyTreeNode.
     """
 
     def pure_loss(params):
         predicted = state.apply_fn(
-            params, x, rngs={"dropout": rng}
+            params, x_num, x_cat, rngs={"dropout": rng}
         )  # TODO generalize this dropout arg
         loss_items = state.loss_fn(y, predicted)
         return jnp.mean(loss_items), predicted
@@ -44,15 +45,15 @@ def train_step(rng, x, y, state: TrainStateWithLoss):
 
 
 @jax.jit
-def eval_step(rng, x, y, state: TrainStateWithLoss):
-    """Evaluates the current training state on a batch (x, y) of data.
+def eval_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
+    """Evaluates the current training state on a batch (x_num, x_cat, y) of data.
 
     We can jit this function because our state subclasses a jax PyTreeNode.
     """
 
     def pure_loss(params):
         predicted = state.apply_fn(
-            params, x, rngs={"dropout": rng}
+            params, x_num, x_cat, rngs={"dropout": rng}
         )  # TODO generalize this rngs arg
         loss_items = state.loss_fn(y, predicted)
         return jnp.mean(loss_items), predicted
@@ -70,37 +71,28 @@ def train(
     eval_dataset,
     loss_fn,
     num_epochs,
-    inputs_shape,
-    layer_name,
-    bias,
+    num_input_shape,
+    cat_input_shape,
     smoothing_alpha: float = 0.9,
-    output_dir=None,
     hist_every=None,
     print_every=None,
-    save_every=None,
-    load_checkpoint=False,
     single_batch=False,
 ):
-    if output_dir is not None:
-        assert isinstance(output_dir, str)
-        if not os.path.isdir(output_dir):
-            os.makedirs(output_dir)
-            print(f"Directory '{output_dir}' did not exist and was created.")
-        writer = SummaryWriter(output_dir)
+    if not os.path.isdir("logs"):
+        os.makedirs("logs")
+        print(f"Directory 'logs' did not exist and was created.")
+    writer = SummaryWriter("logs")
     if hist_every is not None:
-        assert output_dir is not None
         assert isinstance(hist_every, int)
     if print_every is not None:
-        assert output_dir is not None
         assert isinstance(print_every, int)
 
     rng, init_params_rng = random.split(rng, num=2)
     params = init_params(
-        rng=init_params_rng,
-        model=model,
-        inputs_shape=inputs_shape,
-        bias=bias,
-        layer_name=layer_name,
+        init_params_rng,
+        num_input_shape,
+        cat_input_shape,
+        dropout=model.dropout
     )
 
     train_state = TrainStateWithLoss(
@@ -111,11 +103,6 @@ def train(
         tx=optimizer,
         opt_state=optimizer.init(params),
     )
-
-    if load_checkpoint:
-        train_state = checkpoints.restore_checkpoint(
-            "checkpoints", train_state
-        )
 
     if single_batch:
         train_dataset = train_dataset.take(1)

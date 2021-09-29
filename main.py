@@ -7,16 +7,18 @@ import pandas as pd
 
 from preprocess import get_transformed_data
 from data_loader import get_dataset, train_test_split_pandas
-from models import get_embedders
+from models import CustomMLP
 from training_loop import train
 from train_utils import mse_loss
+
+import jax.random as random
+import optax
 
 
 EVAL_SHARE = 0.3
 
 # TODOs
-# separate design matrices for embeddings in the pipeline
-# clean up the pipeline and make training params a namedtuple
+# clean up the pipeline
 # allow the model to embed stuff
 # clean up logging with clu
 # debug single training
@@ -29,11 +31,12 @@ EVAL_SHARE = 0.3
 
 
 def house_prices_train(args):
+    seed = 1515151555151551551
     train_data_full = pd.read_csv(os.path.join("data", "train.csv")).iloc[
         :, 1:
     ]  # remove first id column
 
-    np.random.seed(151515)
+    np.random.seed(seed)
 
     transforms = None
     with open(os.path.join("data", "transforms"), "r") as f:
@@ -63,18 +66,16 @@ def house_prices_train(args):
         buffer_size=len(eval_data),
         numpy=True,
     )
-
-    embedders = get_embedders(cardinalities, args.embed_size)
-
-    mlp = MLP(
-        layer_sizes=[args.hidden_size for _ in range(args.n_hidden_layers)],
-        dropout_rate=args.dropout_rate,
-        dropout=args.dropout_enabled,
-    )
-
     return train(
-        rng=random.PRNGKey(train_seed),
+        rng=random.PRNGKey(seed),
         optimizer=optax.adam(args.lr),
+        model=CustomMLP(
+            layer_sizes=[args.hidden_size for _ in range(args.n_hidden_layers)],
+            embedding_sizes=[(card + 1, args.embed_size) for card in cardinalities],
+            dropout_rate=args.dropout_rate,
+            dropout=args.dropout_enabled,
+            bias=train_transformed.y.mean(),
+        ),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         loss_fn=mse_loss,
@@ -84,7 +85,6 @@ def house_prices_train(args):
             + train_transformed.X_cat.shape[1] * args.embed_size,
         ),
         print_every=1,
-        output_dir="logs",
         hist_every=1,
         single_batch=args.single_batch,
     )
@@ -102,6 +102,7 @@ if __name__ == "__main__":
             "hidden_size",
             "dropout_enabled",
             "dropout_rate",
+            "single_batch",
         ],
     )
     # n_features = 10

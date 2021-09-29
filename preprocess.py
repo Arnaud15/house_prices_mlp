@@ -18,7 +18,7 @@ def get_transformed_data(
     train_data: pd.DataFrame,
     eval_data: pd.DataFrame,
     transforms: List[Tuple[str, str]],
-) -> Tuple[Datapoints, Datapoints, int]:
+) -> Tuple[Datapoints, Datapoints, List[int]]:
     numeric_t = [
         (col, transfo)
         for (col, transfo) in transforms
