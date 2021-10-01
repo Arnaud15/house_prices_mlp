@@ -1,5 +1,5 @@
 from collections import namedtuple
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -18,8 +18,9 @@ MIN_CARDINALITY = 50
 def get_transformed_data(
     train_data: pd.DataFrame,
     eval_data: pd.DataFrame,
+    test_data: pd.DataFrame,
     transforms: List[Tuple[str, str]],
-) -> Tuple[Datapoints, Datapoints, List[int]]:
+) -> Tuple[Datapoints, Datapoints, Datapoints, List[int]]:
     numeric_t = [
         (col, transfo)
         for (col, transfo) in transforms
@@ -44,14 +45,26 @@ def get_transformed_data(
         len(np.unique(X_cat[:, ix])) for ix in range(X_cat.shape[1])
     ]
 
-    train_data = Datapoints(y=y, X_num=X_num, X_cat=X_cat)
-
-    X_num_eval, y_eval = preprocess_eval(eval_data, numeric_info)
-    X_cat_eval, _ = preprocess_eval(eval_data, cat_info)
+    X_num_eval, y_eval, nan_to_rm_eval = preprocess_eval(
+        eval_data, numeric_info
+    )
+    X_cat_eval, _, _ = preprocess_eval(eval_data, cat_info)
     X_cat_eval = X_cat_eval[:, retained_cat_indices]
 
-    eval_data = Datapoints(y=y_eval, X_num=X_num_eval, X_cat=X_cat_eval)
-    return train_data, eval_data, cardinalities
+    X_num_test, _, nan_to_rm_test = preprocess_eval(test_data, numeric_info)
+    X_cat_test, _, _ = preprocess_eval(test_data, cat_info)
+    X_cat_test = X_cat_test[:, retained_cat_indices]
+
+    total_nan_ixs = set(nan_to_rm_eval + nan_to_rm_test)
+    kept_ixs = [ix for ix in range(X_num.shape[1]) if ix not in total_nan_ixs]
+    train_data = Datapoints(y=y, X_num=X_num[:, kept_ixs], X_cat=X_cat)
+    eval_data = Datapoints(
+        y=y_eval, X_num=X_num_eval[:, kept_ixs], X_cat=X_cat_eval
+    )
+    test_data = Datapoints(
+        y=None, X_num=X_num_test[:, kept_ixs], X_cat=X_cat_test
+    )
+    return train_data, eval_data, test_data, cardinalities
 
 
 def preprocess_train(
@@ -131,7 +144,7 @@ def preprocess_train(
 
 def preprocess_eval(
     data: pd.DataFrame, preprocess_info: List[TransformInfo],
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """Transform evaluation data using preprocessing information from training data.
     Args:
         - data: the evaluation data to transform
@@ -141,7 +154,8 @@ def preprocess_eval(
     Returns:
         (X, y) evaluation data transformed and ready to be processed."""
     transformed = []
-    for (col, transform, info) in preprocess_info:
+    nan_to_remove_ixs = []
+    for (ix, (col, transform, info)) in enumerate(preprocess_info):
         assert (
             col != "SalePrice"
         ), "forbidden to use the response vector as a feature!"
@@ -152,11 +166,16 @@ def preprocess_eval(
             transformed.append(encoded)
         elif transform == "scale":
             scaled = scale_from_minmax(data.loc[:, col].values, info)
+            if (
+                np.isnan(scaled).sum() > 0
+            ):  # some nan values can appear outside of train
+                nan_to_remove_ixs.append(ix)
             transformed.append(scaled)
         elif transform == "lognorm":
-            transformed.append(
-                log_std_from_stats(data.loc[:, col].values, info)
-            )
+            log_transformed = log_std_from_stats(data.loc[:, col].values, info)
+            if np.isnan(log_transformed).sum() > 0:
+                nan_to_remove_ixs.append(ix)
+            transformed.append(log_transformed)
         elif transform == "identity":
             transformed.append(data.loc[:, col].values)
         elif transform == "isnan":
@@ -173,7 +192,9 @@ def preprocess_eval(
     )
     assert len(design_matrix.shape) == 2
     assert design_matrix.shape == (len(data), len(transformed))
-    assert "SalePrice" in data.columns, "incomplete frame"
-    y_vec = np.log(data.loc[:, "SalePrice"].values)
-    assert y_vec.shape[0] == design_matrix.shape[0]
-    return design_matrix, y_vec
+    if "SalePrice" in data.columns:
+        y_vec = np.log(data.loc[:, "SalePrice"].values)
+        assert y_vec.shape[0] == design_matrix.shape[0]
+    else:
+        y_vec = None
+    return design_matrix, y_vec, nan_to_remove_ixs

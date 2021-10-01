@@ -1,7 +1,9 @@
 import json
 import os
+import sys
 from collections import namedtuple
 
+import jax.numpy as jnp
 import jax.random as random
 import numpy as np
 import optax
@@ -14,19 +16,22 @@ from train_utils import mse_loss
 from training_loop import train
 
 # TODOs
-# script for rd hp search
 # submission script
 # debug a couple of regularization ideas
-# ray notebook or script
+# script for rd hp search (ray)
 # submissions with better and better models
 # re-org files
+# if time: clu logging and ml collections params
 
 
 def house_prices_train(args):
     seed = 1515151555
     train_data_full = pd.read_csv(os.path.join("data", "train.csv")).iloc[
         :, 1:
-    ]  # remove first id column
+    ]  # remove unused id column
+    test_data_full = pd.read_csv(
+        os.path.join("data", "test.csv")
+    )  # keep first id column
 
     np.random.seed(seed)
 
@@ -37,8 +42,23 @@ def house_prices_train(args):
 
     train_data, eval_data = train_test_split_pandas(train_data_full)
 
-    train_transformed, eval_transformed, cardinalities = get_transformed_data(
-        train_data=train_data, eval_data=eval_data, transforms=transforms
+    print(
+        f"""Dataframe shapes (rows, cols):
+train {len(train_data), len(train_data.columns)},
+eval {len(eval_data), len(eval_data.columns)},
+test {len(test_data_full), len(test_data_full.columns)}."""
+    )
+
+    (
+        train_transformed,
+        eval_transformed,
+        test_transformed,
+        cardinalities,
+    ) = get_transformed_data(
+        train_data=train_data,
+        eval_data=eval_data,
+        test_data=test_data_full,
+        transforms=transforms,
     )
 
     train_dataset = get_dataset(
@@ -68,7 +88,7 @@ def house_prices_train(args):
         bias=train_transformed.y.mean(),
     )
 
-    trained_params = train(
+    trained_params, eval_loss = train(
         rng=random.PRNGKey(seed),
         model=model,
         optimizer=optax.adam(args.lr),
@@ -81,8 +101,34 @@ def house_prices_train(args):
         hist_every=1,
         print_every=1,
     )
+    print(f"Evaluation RMSE after training: {eval_loss:.3f}")
 
-    return model, trained_params
+    print(
+        f"NaNs in numeric: {np.isnan(test_transformed.X_num).sum()}, NaN from int casting: {test_transformed.X_cat.astype(int).dtype}"
+    )
+    rng = random.PRNGKey(1513241)
+    predictions = model.apply(
+        trained_params,
+        test_transformed.X_num,
+        test_transformed.X_cat.astype(int),
+        rngs={"dropout": rng},
+    )
+
+    print(
+        f"predictions mean: {predictions.mean():.3f}, std: {predictions.std():.3f}, min: {predictions.min():.3f}, max: {predictions.max():.3f}."
+    )
+    predictions = jnp.exp(predictions)
+    print(
+        f"predictions mean: {predictions.mean():.3f}, std: {predictions.std():.3f}, min: {predictions.min():.3f}, max: {predictions.max():.3f}."
+    )
+
+    with open(os.path.join("data", "submission"), "w") as sub_file:
+        sub_file.write("Id,SalePrice\n")
+        for (example_id, pred) in zip(
+            test_data_full.loc[:, "Id"].values, jnp.squeeze(predictions)
+        ):
+            sub_file.write(f"{example_id},{pred}\n")
+    return eval_loss  # TODO and hash of subfile
 
 
 if __name__ == "__main__":
@@ -100,11 +146,19 @@ if __name__ == "__main__":
             "single_batch",
         ],
     )
+    try:
+        n_epochs = int(sys.argv[1])
+    except ValueError:
+        print("n epochs cannot be interpreted as an integer")
+        n_epochs = 1000
+    except IndexError:
+        print("n epochs not provided")
+        n_epochs = 1000
     args = Args(
         embed_size=3,
         batch_size=32,
         lr=1e-4,
-        n_epochs=1000,
+        n_epochs=n_epochs,
         n_layers=2,
         hidden_size=16,
         dropout_enabled=False,
@@ -113,7 +167,6 @@ if __name__ == "__main__":
     )
     params = house_prices_train(args)
 else:
-    import sys
 
     print("main.py should not be imported and used only as a script.")
     sys.exit(1)

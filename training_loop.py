@@ -101,18 +101,20 @@ def train(
 
     step = 0
     running_train_loss = None
+    running_eval_loss = None
     for epoch_ix in range(num_epochs):
         for (x_num, x_cat, y) in train_dataset:
             rng, rng_step = random.split(rng, num=2)
             train_state, loss_step, res_step = train_step(
                 rng=rng_step, x_num=x_num, x_cat=x_cat, y=y, state=train_state,
             )
+            rmse_step = jnp.sqrt(loss_step)
             running_train_loss = update_running(
-                obs=loss_step, loss=running_train_loss, decay=smoothing_alpha,
+                obs=rmse_step, loss=running_train_loss, decay=smoothing_alpha,
             )
             if (print_every is not None) and (step % print_every == 0):
                 writer.scalar("train_loss", running_train_loss, step=step)
-                print(f"Step {step} | Training Loss: {loss_step:.4f}")
+                print(f"Step {step} | Training Loss: {rmse_step:.4f}")
             if (hist_every is not None) and (step % hist_every == 0):
                 writer.histogram("train_hist", res_step, bins=5, step=step)
 
@@ -124,9 +126,12 @@ def train(
             loss_eval_step, _ = eval_step(
                 rng_step, x_num=x_num, x_cat=x_cat, y=y, state=train_state,
             )
-            eval_loss += loss_eval_step
+            eval_loss += jnp.sqrt(loss_eval_step)
             eval_batches += 1
         eval_loss /= eval_batches
+        running_eval_loss = update_running(
+            obs=eval_loss, loss=running_eval_loss, decay=smoothing_alpha
+        )
         writer.scalar("validation_loss", eval_loss, step=epoch_ix)
         print(f"Epoch {epoch_ix + 1} | Validation Loss: {eval_loss:.4f}")
-    return params
+    return params, running_eval_loss
