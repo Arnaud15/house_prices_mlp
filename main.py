@@ -16,7 +16,7 @@ from train_utils import mse_loss
 from training_loop import train
 
 # TODOs
-# submission script
+# overfit one batch and other karpathy checks
 # debug a couple of regularization ideas
 # script for rd hp search (ray)
 # submissions with better and better models
@@ -103,32 +103,27 @@ test {len(test_data_full), len(test_data_full.columns)}."""
     )
     print(f"Evaluation RMSE after training: {eval_loss:.3f}")
 
-    print(
-        f"NaNs in numeric: {np.isnan(test_transformed.X_num).sum()}, NaN from int casting: {test_transformed.X_cat.astype(int).dtype}"
-    )
     rng = random.PRNGKey(1513241)
-    predictions = model.apply(
-        trained_params,
-        test_transformed.X_num,
-        test_transformed.X_cat.astype(int),
-        rngs={"dropout": rng},
+    predictions = jnp.exp(
+        model.apply(
+            trained_params,
+            test_transformed.X_num,
+            test_transformed.X_cat.astype(int),
+            rngs={"dropout": rng},
+        )
     )
-
-    print(
-        f"predictions mean: {predictions.mean():.3f}, std: {predictions.std():.3f}, min: {predictions.min():.3f}, max: {predictions.max():.3f}."
-    )
-    predictions = jnp.exp(predictions)
     print(
         f"predictions mean: {predictions.mean():.3f}, std: {predictions.std():.3f}, min: {predictions.min():.3f}, max: {predictions.max():.3f}."
     )
 
-    with open(os.path.join("data", "submission"), "w") as sub_file:
+    u_sub_name = f"submission_{hash(args)}"
+    with open(os.path.join("data", u_sub_name), "w") as sub_file:
         sub_file.write("Id,SalePrice\n")
         for (example_id, pred) in zip(
             test_data_full.loc[:, "Id"].values, jnp.squeeze(predictions)
         ):
             sub_file.write(f"{example_id},{pred}\n")
-    return eval_loss  # TODO and hash of subfile
+    return eval_loss, u_sub_name
 
 
 if __name__ == "__main__":
