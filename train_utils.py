@@ -18,7 +18,6 @@ def squared_loss(y, predicted):
     return (y - predicted) ** 2
 
 
-# mse_loss = jax.vmap(jax.jit(squared_loss), in_axes=0)
 mse_loss = jax.vmap(squared_loss, in_axes=0)
 
 

@@ -31,7 +31,7 @@ def random_params() -> Args:
         batch_size=np.random.choice(possible_batch_sizes),
         lr=np.random.choice(possible_lrs),
         n_layers=np.random.choice(possible_n_layers),
-        n_epochs=1,
+        n_epochs=1000,
         hidden_size=np.random.choice(possible_hidden_sizes),
         dropout_enabled=True,
         dropout_rate=np.random.choice(possible_dropout_rates),

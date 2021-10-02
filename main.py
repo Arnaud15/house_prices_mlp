@@ -7,15 +7,11 @@ import jax.random as random
 import numpy as np
 import optax
 import pandas as pd
-import ray
-
-ray.init()
 
 from data_loader import get_dataset, train_test_split_pandas
 from hp_tuning import random_params
 from models import CustomMLP
 from preprocess import get_transformed_data
-from train_utils import mse_loss
 from training_loop import train
 
 # TODOs
@@ -99,7 +95,6 @@ test {len(test_data_full), len(test_data_full.columns)}."""
         optimizer=optax.adam(args.lr),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        loss_fn=mse_loss,
         num_epochs=args.n_epochs,
         cat_input_shape=(args.batch_size, train_transformed.X_cat.shape[1],),
         num_input_shape=(args.batch_size, train_transformed.X_num.shape[1],),
@@ -132,6 +127,9 @@ test {len(test_data_full), len(test_data_full.columns)}."""
 
 
 if __name__ == "__main__":
+    import ray
+
+    ray.init()
     try:
         n_repeats = int(sys.argv[1])
     except ValueError:
@@ -144,9 +142,10 @@ if __name__ == "__main__":
     @ray.remote
     def closure():
         args = random_params()
-        return house_prices_train(args)
+        return house_prices_train(args), args
 
     out = ray.get([closure.remote() for _ in range(n_repeats)])
+    out = sorted(out, key=lambda x: x[0][0])[0]
     print(out)
 else:
     print("main.py should not be imported and used only as a script.")

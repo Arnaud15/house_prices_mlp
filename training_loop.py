@@ -16,7 +16,7 @@ from flax.training import checkpoints
 from board import SummaryWriter
 from models import init_params
 from train_state import TrainStateWithLoss
-from train_utils import update_running
+from train_utils import update_running, mse_loss
 
 
 # @jax.jit
@@ -66,7 +66,6 @@ def train(
     optimizer,
     train_dataset,
     eval_dataset,
-    loss_fn,
     num_epochs,
     num_input_shape,
     cat_input_shape,
@@ -95,13 +94,15 @@ def train(
     train_state = TrainStateWithLoss(
         step=0,
         apply_fn=model.apply,
-        loss_fn=loss_fn,
+        loss_fn=jax.jit(mse_loss),
         params=params,
         tx=optimizer,
         opt_state=optimizer.init(params),
     )
     best_params = None
     best_loss = np.inf
+    jitted_train_step = jax.jit(train_step)
+    jitted_eval_step = jax.jit(eval_step)
 
     step = 0
     running_train_loss = None
@@ -109,7 +110,7 @@ def train(
     for epoch_ix in range(num_epochs):
         for (x_num, x_cat, y) in train_dataset:
             rng, rng_step = random.split(rng, num=2)
-            train_state, loss_step, res_step = train_step(
+            train_state, loss_step, res_step = jitted_train_step(
                 rng=rng_step, x_num=x_num, x_cat=x_cat, y=y, state=train_state,
             )
             rmse_step = jnp.sqrt(loss_step)
@@ -127,7 +128,7 @@ def train(
         eval_batches = 0
         for (x_num, x_cat, y) in eval_dataset:
             rng, rng_step = random.split(rng, num=2)
-            loss_eval_step, _ = eval_step(
+            loss_eval_step, _ = jitted_eval_step(
                 rng_step, x_num=x_num, x_cat=x_cat, y=y, state=train_state,
             )
             eval_loss += jnp.sqrt(loss_eval_step)
