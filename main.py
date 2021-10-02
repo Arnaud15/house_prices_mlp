@@ -7,6 +7,9 @@ import jax.random as random
 import numpy as np
 import optax
 import pandas as pd
+import ray
+
+ray.init()
 
 from data_loader import get_dataset, train_test_split_pandas
 from hp_tuning import random_params
@@ -137,9 +140,6 @@ if __name__ == "__main__":
     except IndexError:
         print("n repeats not provided")
         n_repeats = 1000
-    import ray
-
-    ray.init()
 
     @ray.remote
     def closure():

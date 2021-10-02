@@ -19,7 +19,7 @@ from train_state import TrainStateWithLoss
 from train_utils import update_running
 
 
-@jax.jit
+# @jax.jit
 def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
     """Updates the training state on a batch (x_num, x_cat, y) of data.
 
@@ -41,7 +41,7 @@ def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
     return state, loss_step, residuals_step
 
 
-@jax.jit
+# @jax.jit
 def eval_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
     """Evaluates the current training state on a batch (x_num, x_cat, y) of data.
 
