@@ -9,7 +9,7 @@ import optax
 import pandas as pd
 
 from data_loader import get_dataset, train_test_split_pandas
-from hp_tuning import Args
+from hp_tuning import random_params
 from models import CustomMLP
 from preprocess import get_transformed_data
 from train_utils import mse_loss
@@ -130,26 +130,24 @@ test {len(test_data_full), len(test_data_full.columns)}."""
 
 if __name__ == "__main__":
     try:
-        n_epochs = int(sys.argv[1])
+        n_repeats = int(sys.argv[1])
     except ValueError:
-        print("n epochs cannot be interpreted as an integer")
-        n_epochs = 1000
+        print("n repeats cannot be interpreted as an integer")
+        n_repeats = 1000
     except IndexError:
-        print("n epochs not provided")
-        n_epochs = 1000
-    args = Args(
-        embed_size=4,
-        batch_size=32,
-        lr=5.0 * 1e-4,
-        n_epochs=n_epochs,
-        n_layers=5,
-        hidden_size=32,
-        dropout_enabled=True,
-        dropout_rate=0.2,
-        single_batch=False,
-    )
-    params = house_prices_train(args)
-else:
+        print("n repeats not provided")
+        n_repeats = 1000
+    import ray
 
+    ray.init()
+
+    @ray.remote
+    def closure():
+        args = random_params()
+        return house_prices_train(args)
+
+    out = ray.get([closure.remote() for _ in range(n_repeats)])
+    print(out)
+else:
     print("main.py should not be imported and used only as a script.")
     sys.exit(1)
