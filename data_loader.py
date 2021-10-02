@@ -18,9 +18,10 @@ def get_dataset(
 ):
     data = tf.data.Dataset.from_tensor_slices((x_num, x_cat, y_data))
     data = data.batch(batch_size)
-    data = data.shuffle(buffer_size=buffer_size)
     if single_batch:
         data = data.take(1)
+    else:
+        data = data.shuffle(buffer_size=buffer_size)
     return tfds.as_numpy(data)
 
 

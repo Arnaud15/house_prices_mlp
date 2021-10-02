@@ -3,10 +3,12 @@ Simple training module in Flax.
 """
 
 import os
+from copy import deepcopy
 
 import jax
 import jax.numpy as jnp
 import jax.random as random
+import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from flax.training import checkpoints
@@ -98,6 +100,8 @@ def train(
         tx=optimizer,
         opt_state=optimizer.init(params),
     )
+    best_params = None
+    best_loss = np.inf
 
     step = 0
     running_train_loss = None
@@ -132,6 +136,11 @@ def train(
         running_eval_loss = update_running(
             obs=eval_loss, loss=running_eval_loss, decay=smoothing_alpha
         )
+
+        if eval_loss < best_loss:
+            best_params = deepcopy(train_state.params)
+            best_loss = eval_loss
+
         writer.scalar("validation_loss", eval_loss, step=epoch_ix)
         print(f"Epoch {epoch_ix + 1} | Validation Loss: {eval_loss:.4f}")
-    return params, running_eval_loss
+    return best_params, best_loss

@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-from collections import namedtuple
 
 import jax.numpy as jnp
 import jax.random as random
@@ -10,18 +9,19 @@ import optax
 import pandas as pd
 
 from data_loader import get_dataset, train_test_split_pandas
+from hp_tuning import Args
 from models import CustomMLP
 from preprocess import get_transformed_data
 from train_utils import mse_loss
 from training_loop import train
 
 # TODOs
-# overfit one batch and other karpathy checks
-# debug a couple of regularization ideas
 # script for rd hp search (ray)
+# other karpathy checks
+# debug a couple of regularization ideas
 # submissions with better and better models
 # re-org files
-# if time: clu logging and ml collections params
+# if time: clu logging and ml collections params, lifted module
 
 
 def house_prices_train(args):
@@ -60,6 +60,8 @@ test {len(test_data_full), len(test_data_full.columns)}."""
         test_data=test_data_full,
         transforms=transforms,
     )
+
+    print(f"Baseline RMSE: {train_transformed.y.std():.3f}.")
 
     train_dataset = get_dataset(
         x_num=train_transformed.X_num,
@@ -127,20 +129,6 @@ test {len(test_data_full), len(test_data_full.columns)}."""
 
 
 if __name__ == "__main__":
-    Args = namedtuple(
-        "Args",
-        [
-            "embed_size",
-            "batch_size",
-            "lr",
-            "n_layers",
-            "n_epochs",
-            "hidden_size",
-            "dropout_enabled",
-            "dropout_rate",
-            "single_batch",
-        ],
-    )
     try:
         n_epochs = int(sys.argv[1])
     except ValueError:
@@ -150,15 +138,15 @@ if __name__ == "__main__":
         print("n epochs not provided")
         n_epochs = 1000
     args = Args(
-        embed_size=3,
+        embed_size=4,
         batch_size=32,
-        lr=1e-4,
+        lr=5.0 * 1e-4,
         n_epochs=n_epochs,
-        n_layers=2,
-        hidden_size=16,
-        dropout_enabled=False,
-        dropout_rate=0.1,
-        single_batch=True,
+        n_layers=5,
+        hidden_size=32,
+        dropout_enabled=True,
+        dropout_rate=0.2,
+        single_batch=False,
     )
     params = house_prices_train(args)
 else:
