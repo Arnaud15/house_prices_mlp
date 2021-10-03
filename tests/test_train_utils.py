@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import jax.random as random
 
-from models import CustomMLP, init_params
+from house_prices_mlp.models import CustomMLP, init_params
 
 
 def test_init_params():

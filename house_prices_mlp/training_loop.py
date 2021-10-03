@@ -1,3 +1,4 @@
+
 """
 Simple training module in Flax.
 """
@@ -17,7 +18,6 @@ from board import SummaryWriter
 from models import init_params
 from train_state import TrainStateWithLoss
 from train_utils import update_running, mse_loss
-
 
 # @jax.jit
 def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):

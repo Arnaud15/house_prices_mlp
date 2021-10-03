@@ -1,1 +1,18 @@
-Run tests with `python -m pytest` from the root directory.
+# Flax / Jax Practice with Housing Prices
+
+Install dependencies locally and dev-install the package (only needs to be done once).
+
+```
+# from repo root
+poetry install
+```
+
+Running tests
+```
+poetry run pytest
+```
+
+Interactive jupyter notebooks
+```
+poetry run jupyter notebook
+```
