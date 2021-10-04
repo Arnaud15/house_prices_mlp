@@ -56,7 +56,38 @@ def hp_search_ray(n_repeats: int) -> Tuple[np.ndarray, str]:
     @ray.remote
     def closure():
         args = random_params()
-        return house_prices_train(args), args
+        return house_prices_mlp(args), args
 
     out = ray.get([closure.remote() for _ in range(n_repeats)])
     return sorted(out, key=lambda x: x[0][0])[0]
+
+
+GBDTArgs = namedtuple(
+    "GBDTArgs",
+    [
+        "learning_rate",
+        "num_rounds",
+        "bagging_fraction",
+        "lambda_l1",
+        "max_depth",
+        "early_stopping_round",
+    ],
+)
+
+possible_early_stopping = np.array([3, 5, 10])
+possible_gbdt_lrs = np.array([1e-5, 1e-4, 1e-3, 1e-2, 1e-1])
+possible_num_rounds = np.array([100, 500, 1000, 2000])
+possible_max_depth = np.array([-1, 3, 5, 7])
+possible_bagging_fraction = np.array([1.0, 0.9, 0.8, 0.7])
+possible_lambda_l1 = np.array([0.0, 1e-5, 1e-4, 1e-3, 1e-2])
+
+
+def random_params():
+    return GBDTArgs(
+        learning_rate=np.random.choice(possible_gbdt_lrs),
+        num_rounds=np.random.choice(possible_num_rounds),
+        bagging_fraction=np.random.choice(possible_bagging_fraction),
+        lambda_l1=np.random.choice(possible_lambda_l1),
+        max_depth=np.random.choice(possible_max_depth),
+        early_stopping_round=np.random.choice(possible_early_stopping),
+    )
