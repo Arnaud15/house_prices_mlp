@@ -16,7 +16,9 @@ from training_loop import train
 
 # TODOs
 # script for rd hp search (ray)
-# actual weight decay support with the mask
+
+# actual weight decay support (given BN) with mask
+
 # other karpathy checks
 # submissions with better and better models
 # re-org files
@@ -96,7 +98,7 @@ test {len(test_data_full), len(test_data_full.columns)}."""
         rng=random.PRNGKey(seed),
         model=model,
         optimizer=optax.adamw(
-            args.lr, weight_decay=args.decay_rate,  # TODO mask=decay_mask
+            args.lr, weight_decay=args.decay_rate, # TODO mask=decay_mask
         )
         if args.weight_decay
         else optax.adam(args.lr),
@@ -146,8 +148,8 @@ if __name__ == "__main__":
     args = Args(
         embed_size=3,
         batch_size=32,
-        lr=1e-3,
-        n_layers=3,
+        lr=1e-4,
+        n_layers=4,
         n_epochs=n_epochs,
         hidden_size=32,
         dropout_enabled=False,
