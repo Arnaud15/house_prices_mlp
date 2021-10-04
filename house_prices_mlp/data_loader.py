@@ -47,21 +47,3 @@ def train_test_split_tf(
     test = dataset.take(n_eval_batches)
     train = dataset.skip(n_eval_batches)
     return train, test
-
-
-def linear_data(
-    seed: int,
-    n: int,
-    p: int,
-    bias: float,
-    beta_scale: float = 1.0,
-    noise_scale: float = 1.0,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    exp_seed = random.PRNGKey(seed)
-    exp_seed, out1_key, out2_key, out3_key = random.split(exp_seed, 4)
-
-    X = random.normal(out1_key, shape=(n, p))
-    noise = random.normal(out2_key, shape=(n,)) * noise_scale
-    beta = 2 * beta_scale * (random.uniform(out3_key, shape=(p,)) - 0.5)
-    Y = X.dot(beta) + noise + bias
-    return X, Y

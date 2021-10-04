@@ -40,9 +40,12 @@ class CustomMLP(nn.Module):
     dropout_rate: float = 0.0
     dropout: bool = False
     bias: float = 0.0
+    batch_norm: bool = False
+    residuals: bool = False
 
     @nn.compact
     def __call__(self, x_numeric, x_categorical, train=True):
+        """Forward method for our custom MLP. Assumes x_numeric and x_cat are dim >=2 arrays."""
         assert len(self.vocab_sizes) == x_categorical.shape[-1]
         dense = [x_numeric]
         for (embed_ix, vocab_size) in enumerate(self.vocab_sizes):
@@ -58,38 +61,18 @@ class CustomMLP(nn.Module):
         )
 
         for layer_ix, layer_size in enumerate(self.layer_sizes):
-            x = nn.Dense(layer_size)(x)
-            if layer_ix != len(self.layer_sizes) - 1:
-                x = nn.relu(x)
-                if self.dropout:
-                    x = nn.Dropout(
-                        rate=self.dropout_rate, deterministic=not train
-                    )(x)
-            else:
-                x = x + self.bias
-        return x
-
-
-class Resnet(nn.Module):
-    layer_sizes: List[int]
-    dropout_rate: float = 0.0
-    dropout: bool = False
-
-    @nn.compact
-    def __call__(self, x, train=True):
-        x_last_shape = x.shape[-1]
-        n_layers = len(self.layer_sizes)
-        for (layer_ix, layer_size) in enumerate(self.layer_sizes):
-            residual = x
-            x = nn.Dense(layer_size)(x)
-            if layer_ix != n_layers - 1:
-                assert (
-                    layer_size == x_last_shape
-                ), f"incompatible residual shapes x:{x.shape}, layer:{layer_size}"
-                x += residual
-                x = nn.relu(x)
+            start = x
+            if self.batch_norm:
+                x = nn.BatchNorm(use_running_average=not train)(x)
             if self.dropout:
                 x = nn.Dropout(
                     rate=self.dropout_rate, deterministic=not train
                 )(x)
+            x = nn.Dense(layer_size)(x)
+            if layer_ix != len(self.layer_sizes) - 1:
+                x = nn.relu(x)
+            else:
+                x = x + self.bias
+            if self.residuals and x.shape == start.shape:
+                x = x + start
         return x

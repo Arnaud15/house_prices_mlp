@@ -41,7 +41,7 @@ def update_running(obs: float, loss: Optional[float], decay: float):
     Small helper to update an ewma with current value loss, where loss is None
     at initialization.
     """
-    assert decay > 0.0 and decay <= 1.0
+    assert decay >= 0.0 and decay <= 1.0
     if loss is None:
         return obs
     else:
