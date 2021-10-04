@@ -96,7 +96,7 @@ test {len(test_data_full), len(test_data_full.columns)}."""
         rng=random.PRNGKey(seed),
         model=model,
         optimizer=optax.adamw(
-            args.lr, weight_decay=args.decay_rate, # TODO mask=decay_mask
+            args.lr, weight_decay=args.decay_rate,  # TODO mask=decay_mask
         )
         if args.weight_decay
         else optax.adam(args.lr),
