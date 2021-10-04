@@ -7,9 +7,9 @@ import pytest
 from flax.core.frozen_dict import unfreeze
 from optax import sgd
 
-from data_loader import get_dataset
-from models import CustomMLP, init_params
-from training_loop import train
+from house_prices_mlp.data_loader import get_dataset
+from house_prices_mlp.models import CustomMLP, init_params
+from house_prices_mlp.training_loop import train
 
 
 def linear_data_helper(
@@ -272,6 +272,7 @@ def test_seeding(linear_data_fixture):
         dropout_rate=0.0,
         dropout=True,
         bias=y.mean(),
+        batch_norm=True
     )
 
     train_dataset = get_dataset(

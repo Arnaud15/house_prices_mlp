@@ -30,6 +30,7 @@ def init_params(
     base_keys = {"params": params_key}
     if dropout:
         base_keys.update({"dropout": dropout_key})
+    batch_stats = None
     return custom_mlp.init(base_keys, num_input, cat_input)
 
 
