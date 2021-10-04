@@ -9,18 +9,19 @@ import optax
 import pandas as pd
 
 from data_loader import get_dataset, train_test_split_pandas
-from hp_tuning import random_params
-from models import CustomMLP
+from hp_tuning import Args
+from models import CustomMLP  # TODO: decay_mask
 from preprocess import get_transformed_data
 from training_loop import train
 
 # TODOs
 # script for rd hp search (ray)
+# actual weight decay support with the mask
 # other karpathy checks
-# debug a couple of regularization ideas
 # submissions with better and better models
 # re-org files
 # if time: clu logging and ml collections params, lifted module
+# if time: BN: not always
 
 
 def house_prices_train(args):
@@ -87,12 +88,18 @@ test {len(test_data_full), len(test_data_full.columns)}."""
         dropout_rate=args.dropout_rate,
         dropout=args.dropout_enabled,
         bias=train_transformed.y.mean(),
+        batch_norm=args.batch_norm,
+        residuals=args.resnet,
     )
 
     trained_params, eval_loss = train(
         rng=random.PRNGKey(seed),
         model=model,
-        optimizer=optax.adam(args.lr),
+        optimizer=optax.adamw(
+            args.lr, weight_decay=args.decay_rate, # TODO mask=decay_mask
+        )
+        if args.weight_decay
+        else optax.adam(args.lr),
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         num_epochs=args.n_epochs,
@@ -110,6 +117,7 @@ test {len(test_data_full), len(test_data_full.columns)}."""
             test_transformed.X_num,
             test_transformed.X_cat.astype(int),
             rngs={"dropout": rng},
+            train=False,
         )
     )
     print(
@@ -127,26 +135,30 @@ test {len(test_data_full), len(test_data_full.columns)}."""
 
 
 if __name__ == "__main__":
-    import ray
-
-    ray.init()
     try:
-        n_repeats = int(sys.argv[1])
+        n_epochs = int(sys.argv[1])
     except ValueError:
         print("n repeats cannot be interpreted as an integer")
-        n_repeats = 1000
+        n_epochs = 1000
     except IndexError:
         print("n repeats not provided")
-        n_repeats = 1000
-
-    @ray.remote
-    def closure():
-        args = random_params()
-        return house_prices_train(args), args
-
-    out = ray.get([closure.remote() for _ in range(n_repeats)])
-    out = sorted(out, key=lambda x: x[0][0])[0]
-    print(out)
+        n_epochs = 1000
+    args = Args(
+        embed_size=3,
+        batch_size=32,
+        lr=1e-3,
+        n_layers=3,
+        n_epochs=n_epochs,
+        hidden_size=32,
+        dropout_enabled=False,
+        dropout_rate=0.0,
+        single_batch=False,
+        weight_decay=False,
+        decay_rate=1e-5,
+        batch_norm=True,
+        resnet=True,
+    )
+    house_prices_train(args)
 else:
     print("main.py should not be imported and used only as a script.")
     sys.exit(1)

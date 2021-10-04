@@ -16,10 +16,9 @@ from flax.training import checkpoints
 from board import SummaryWriter
 from models import init_params
 from train_state import TrainStateWithLoss
-from train_utils import update_running, mse_loss
+from train_utils import mse_loss, update_running
 
 
-# @jax.jit
 def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
     """Updates the training state on a batch (x_num, x_cat, y) of data.
 
@@ -27,21 +26,26 @@ def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
     """
 
     def pure_loss(params):
-        predicted = state.apply_fn(
-            params, x_num, x_cat, rngs={"dropout": rng}
-        )  # TODO generalize this dropout arg
+        predicted, new_batch_stats = state.apply_fn(
+            {"params": params, "batch_stats": state.batch_stats},
+            x_num,
+            x_cat,
+            rngs={"dropout": rng},
+            mutable=["batch_stats"],
+        )
         loss_items = state.loss_fn(y, predicted)
-        return jnp.mean(loss_items), predicted
+        return jnp.mean(loss_items), (predicted, new_batch_stats)
 
-    (loss_step, predicted_step), grad_step = jax.value_and_grad(
-        pure_loss, has_aux=True
-    )(state.params)
-    state = state.apply_gradients(grads=grad_step)
+    aux, grad_step = jax.value_and_grad(pure_loss, has_aux=True)(state.params)
+    loss_step = aux[0]
+    predicted_step, batch_stats_updated = aux[1]
+    state = state.apply_gradients(
+        grads=grad_step, batch_stats=batch_stats_updated["batch_stats"]
+    )
     residuals_step = y - predicted_step
     return state, loss_step, residuals_step
 
 
-# @jax.jit
 def eval_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
     """Evaluates the current training state on a batch (x_num, x_cat, y) of data.
 
@@ -50,8 +54,12 @@ def eval_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
 
     def pure_loss(params):
         predicted = state.apply_fn(
-            params, x_num, x_cat, rngs={"dropout": rng}, train=False
-        )  # TODO generalize this rngs arg
+            {"params": params, "batch_stats": state.batch_stats},
+            x_num,
+            x_cat,
+            rngs={"dropout": rng},
+            train=False,
+        )
         loss_items = state.loss_fn(y, predicted)
         return jnp.mean(loss_items), predicted
 
@@ -83,13 +91,15 @@ def train(
         assert isinstance(print_every, int)
 
     rng, init_params_rng = random.split(rng, num=2)
-    params = init_params(
+    full_vars = init_params(
         init_params_rng,
         model,
         num_input_shape,
         cat_input_shape,
         dropout=model.dropout,
     )
+    params = full_vars["params"]
+    batch_stats = full_vars["batch_stats"]
 
     train_state = TrainStateWithLoss(
         step=0,
@@ -98,6 +108,7 @@ def train(
         params=params,
         tx=optimizer,
         opt_state=optimizer.init(params),
+        batch_stats=batch_stats,
     )
     best_params = None
     best_loss = np.inf
@@ -139,7 +150,12 @@ def train(
         )
 
         if eval_loss < best_loss:
-            best_params = deepcopy(train_state.params)
+            best_params = deepcopy(
+                {
+                    "params": train_state.params,
+                    "batch_stats": train_state.batch_stats,
+                }
+            )
             best_loss = eval_loss
 
         writer.scalar("validation_loss", eval_loss, step=epoch_ix)

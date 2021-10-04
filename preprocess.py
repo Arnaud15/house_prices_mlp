@@ -144,7 +144,7 @@ def preprocess_train(
 
 def preprocess_eval(
     data: pd.DataFrame, preprocess_info: List[TransformInfo],
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+) -> Tuple[np.ndarray, Optional[np.ndarray], List[int]]:
     """Transform evaluation data using preprocessing information from training data.
     Args:
         - data: the evaluation data to transform
