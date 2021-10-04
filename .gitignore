@@ -6,3 +6,4 @@ logs/
 typings/
 *.csv
 *~
+.dumbjump
