@@ -13,10 +13,10 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from flax.training import checkpoints
 
-from board import SummaryWriter
-from models import init_params
-from train_state import TrainStateWithLoss
-from train_utils import mse_loss, update_running
+from .board import SummaryWriter
+from .models import init_params
+from .train_state import TrainStateWithLoss
+from .train_utils import mse_loss, update_running
 
 
 def train_step(rng, x_num, x_cat, y, state: TrainStateWithLoss):
