@@ -1,3 +1,6 @@
+"""Preprocessing utilities, transforming the raw house prices csv data to
+cleaner numerical and categorical features, using specified input transforms
+for selected columns of the csv."""
 from collections import namedtuple
 from typing import Any, List, Optional, Tuple
 

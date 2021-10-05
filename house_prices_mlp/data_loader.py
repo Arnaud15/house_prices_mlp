@@ -1,3 +1,4 @@
+"""Data pipeline utilities."""
 from typing import Tuple
 
 import jax.numpy as jnp

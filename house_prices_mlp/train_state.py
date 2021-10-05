@@ -1,3 +1,5 @@
+"""Subclass of the TrainState from Flax, to be able to jit our "train step"
+method."""
 from typing import Any, Callable
 
 from flax import struct

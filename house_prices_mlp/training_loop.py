@@ -1,5 +1,5 @@
 """
-Simple training module in Flax.
+Simple training module in Flax, for our custom regularized MLPs with BatchNorm.
 """
 
 import os

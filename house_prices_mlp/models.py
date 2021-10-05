@@ -1,3 +1,10 @@
+"""Regularized MLP model with support for a couple of regularization
+techniques:
+- Dropout
+- BatchNorm
+- Residual connections
+- Weight Decay (see the optimizer initialization in main.py)
+"""
 from typing import Any, List, Tuple
 
 import flax.linen as nn

@@ -28,3 +28,11 @@ Training
 ```
 poetry run python -m house_prices_mlp.main
 ```
+
+### TODOs tracker
+- [ ] mix out or mix in data augmentation
+- [ ] cosine annealing for the learning rate
+- [ ] clu logging
+Less important / more ambitious
+- [ ] ml collections params
+- [ ] lifted module with jit?

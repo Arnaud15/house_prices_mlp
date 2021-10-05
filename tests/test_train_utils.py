@@ -272,7 +272,7 @@ def test_seeding(linear_data_fixture):
         dropout_rate=0.0,
         dropout=True,
         bias=y.mean(),
-        batch_norm=True
+        batch_norm=True,
     )
 
     train_dataset = get_dataset(
