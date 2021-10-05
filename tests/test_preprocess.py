@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from preprocess import *
-from preprocess_utils import *
+from house_prices_mlp.preprocess import *
+from house_prices_mlp.preprocess_utils import *
 
 
 def with_nan(npoints: int) -> np.ndarray:
