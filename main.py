@@ -20,11 +20,11 @@ from training_loop import train
 
 # actual weight decay support (given BN) with mask
 
-# other karpathy checks
-# submissions with better and better models
 # re-org files
+# submissions with better and better models
+
 # if time: clu logging and ml collections params, lifted module
-# if time: BN: not always
+# it time: cosine annealing for the learning rate
 
 
 def house_prices_gbdt(lgb_args):

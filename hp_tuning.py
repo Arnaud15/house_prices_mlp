@@ -50,18 +50,6 @@ def random_params() -> Args:
     )
 
 
-def hp_search_ray(n_repeats: int) -> Tuple[np.ndarray, str]:
-    ray.init(num_cpus=5)
-
-    @ray.remote
-    def closure():
-        args = random_params()
-        return house_prices_mlp(args), args
-
-    out = ray.get([closure.remote() for _ in range(n_repeats)])
-    return sorted(out, key=lambda x: x[0][0])[0]
-
-
 GBDTArgs = namedtuple(
     "GBDTArgs",
     [
@@ -82,7 +70,7 @@ possible_bagging_fraction = np.array([1.0, 0.9, 0.8, 0.7])
 possible_lambda_l1 = np.array([0.0, 1e-5, 1e-4, 1e-3, 1e-2])
 
 
-def random_params():
+def random_gbdt_params():
     return GBDTArgs(
         learning_rate=np.random.choice(possible_gbdt_lrs),
         num_rounds=np.random.choice(possible_num_rounds),
@@ -91,3 +79,15 @@ def random_params():
         max_depth=np.random.choice(possible_max_depth),
         early_stopping_round=np.random.choice(possible_early_stopping),
     )
+
+
+def hp_search_ray_gbdt(n_repeats: int) -> Tuple[np.ndarray, str]:
+    ray.init(num_cpus=5)
+
+    @ray.remote
+    def closure():
+        args = random_gbdt_params()
+        return house_prices_gbdt(args), args
+
+    out = ray.get([closure.remote() for _ in range(n_repeats)])
+    return sorted(out, key=lambda x: x[0][0])[0]
