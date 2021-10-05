@@ -33,6 +33,7 @@ poetry run python -m house_prices_mlp.main
 - [ ] mix out or mix in data augmentation
 - [ ] cosine annealing for the learning rate
 - [ ] clu logging
+
 Less important / more ambitious
 - [ ] ml collections params
 - [ ] lifted module with jit?
